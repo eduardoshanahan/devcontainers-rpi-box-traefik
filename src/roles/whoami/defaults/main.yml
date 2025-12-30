@@ -1,0 +1,15 @@
+---
+whoami_required_env_vars:
+  - WHOAMI_IMAGE
+  - WHOAMI_CONTAINER_NAME
+  - WHOAMI_HOST
+  - WHOAMI_PORT
+  - WHOAMI_DOCKER_NETWORK
+  - WHOAMI_STACK_DIR
+
+whoami_image: "{{ lookup('env', 'WHOAMI_IMAGE') }}"
+whoami_container_name: "{{ lookup('env', 'WHOAMI_CONTAINER_NAME') }}"
+whoami_host: "{{ lookup('env', 'WHOAMI_HOST') }}"
+whoami_port: "{{ lookup('env', 'WHOAMI_PORT') }}"
+whoami_docker_network: "{{ lookup('env', 'WHOAMI_DOCKER_NETWORK') }}"
+whoami_stack_dir: "{{ lookup('env', 'WHOAMI_STACK_DIR') }}"

@@ -1,0 +1,21 @@
+services:
+  traefik:
+    image: "{{ traefik_image }}"
+    container_name: "{{ traefik_container_name }}"
+    restart: unless-stopped
+    ports:
+      - "{{ traefik_http_port }}:{{ traefik_http_port }}"
+      - "{{ traefik_https_port }}:{{ traefik_https_port }}"
+      - "{{ traefik_web_port }}:{{ traefik_web_port }}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - "{{ traefik_config_dir }}/traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "{{ traefik_config_dir }}/dynamic.yml:/etc/traefik/dynamic.yml:ro"
+      - "{{ traefik_cert_dir }}:/etc/traefik/certs:ro"
+      - "{{ traefik_data_dir }}:/var/lib/traefik"
+    networks:
+      - "{{ traefik_docker_network }}"
+
+networks:
+  {{ traefik_docker_network }}:
+    external: true

@@ -1,0 +1,4 @@
+tls:
+  certificates:
+    - certFile: "/etc/traefik/certs/{{ traefik_cert_file | basename }}"
+      keyFile: "/etc/traefik/certs/{{ traefik_key_file | basename }}"

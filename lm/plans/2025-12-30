@@ -1,0 +1,4 @@
+# 2025-12-30
+
+- Investigate and implement the deployment of Traefik as a Docker container in an existing Raspberry Pi running Ubuntu Server 22.04 and Docker already.
+- Take in account that the rpi is already running existing services with UIs that may need to be updated to point to the correct Traefik location once Traefik is running correctly. That operation is not to be implemented in this project, but it needs to be considered during design and implementation.

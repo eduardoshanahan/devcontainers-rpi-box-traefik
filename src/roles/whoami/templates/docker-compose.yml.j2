@@ -1,0 +1,17 @@
+services:
+  whoami:
+    image: "{{ whoami_image }}"
+    container_name: "{{ whoami_container_name }}"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`{{ whoami_host }}`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls=true"
+      - "traefik.http.services.whoami.loadbalancer.server.port={{ whoami_port }}"
+    networks:
+      - "{{ whoami_docker_network }}"
+
+networks:
+  {{ whoami_docker_network }}:
+    external: true

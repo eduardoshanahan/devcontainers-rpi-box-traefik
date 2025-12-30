@@ -1,0 +1,31 @@
+---
+traefik_required_env_vars:
+  - TRAEFIK_IMAGE
+  - TRAEFIK_CONTAINER_NAME
+  - TRAEFIK_HTTP_PORT
+  - TRAEFIK_HTTPS_PORT
+  - TRAEFIK_WEB_PORT
+  - TRAEFIK_DOCKER_NETWORK
+  - TRAEFIK_STACK_DIR
+  - TRAEFIK_CONFIG_DIR
+  - TRAEFIK_DATA_DIR
+  - TRAEFIK_CERT_DIR
+  - TRAEFIK_CERT_FILE
+  - TRAEFIK_KEY_FILE
+  - TRAEFIK_SYSTEMD_AUTOSTART
+  - TRAEFIK_LOG_LEVEL
+
+traefik_image: "{{ lookup('env', 'TRAEFIK_IMAGE') }}"
+traefik_container_name: "{{ lookup('env', 'TRAEFIK_CONTAINER_NAME') }}"
+traefik_http_port: "{{ lookup('env', 'TRAEFIK_HTTP_PORT') }}"
+traefik_https_port: "{{ lookup('env', 'TRAEFIK_HTTPS_PORT') }}"
+traefik_web_port: "{{ lookup('env', 'TRAEFIK_WEB_PORT') }}"
+traefik_docker_network: "{{ lookup('env', 'TRAEFIK_DOCKER_NETWORK') }}"
+traefik_stack_dir: "{{ lookup('env', 'TRAEFIK_STACK_DIR') }}"
+traefik_config_dir: "{{ lookup('env', 'TRAEFIK_CONFIG_DIR') }}"
+traefik_data_dir: "{{ lookup('env', 'TRAEFIK_DATA_DIR') }}"
+traefik_cert_dir: "{{ lookup('env', 'TRAEFIK_CERT_DIR') }}"
+traefik_cert_file: "{{ lookup('env', 'TRAEFIK_CERT_FILE') }}"
+traefik_key_file: "{{ lookup('env', 'TRAEFIK_KEY_FILE') }}"
+traefik_systemd_autostart: "{{ lookup('env', 'TRAEFIK_SYSTEMD_AUTOSTART') }}"
+traefik_log_level: "{{ lookup('env', 'TRAEFIK_LOG_LEVEL') }}"

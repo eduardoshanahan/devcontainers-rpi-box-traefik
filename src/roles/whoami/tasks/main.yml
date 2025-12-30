@@ -1,0 +1,43 @@
+---
+- name: Initialize whoami env validation list
+  ansible.builtin.set_fact:
+    whoami_missing_env: []
+
+- name: Check required whoami environment variables
+  ansible.builtin.set_fact:
+    whoami_missing_env: "{{ whoami_missing_env + [item] }}"
+  when: lookup('env', item) | length == 0
+  loop: "{{ whoami_required_env_vars }}"
+
+- name: Fail when required whoami environment variables are missing
+  ansible.builtin.assert:
+    that:
+      - whoami_missing_env | length == 0
+    fail_msg: >-
+      Missing required environment variables: {{ whoami_missing_env | join(', ') }}
+
+- name: Ensure whoami stack directory exists
+  ansible.builtin.file:
+    path: "{{ whoami_stack_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure shared Docker network exists
+  community.docker.docker_network:
+    name: "{{ whoami_docker_network }}"
+    state: present
+
+- name: Render whoami docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ whoami_stack_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy whoami with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ whoami_stack_dir }}"
+    state: present
