@@ -1,0 +1,8 @@
+---
+ca_share_enabled: >-
+  {{ (lookup('env', 'CA_SHARE_ENABLED') | default('false', true)) | lower == 'true' }}
+ca_share_image: "{{ lookup('env', 'CA_SHARE_IMAGE') | default('nginx:alpine', true) }}"
+ca_share_container_name: "{{ lookup('env', 'CA_SHARE_CONTAINER_NAME') | default('ca-share', true) }}"
+ca_share_stack_dir: "{{ lookup('env', 'CA_SHARE_STACK_DIR') | default('/srv/apps/ca-share', true) }}"
+ca_share_docker_network: "{{ lookup('env', 'CA_SHARE_DOCKER_NETWORK') | default('web', true) }}"
+ca_share_target_ca_file: "{{ ca_share_stack_dir }}/rootCA-{{ ca_share_host }}.pem"

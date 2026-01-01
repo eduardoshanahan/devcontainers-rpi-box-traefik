@@ -15,6 +15,8 @@ provisioned by the [rpi-box project](https://github.com/eduardoshanahan/devconta
 - Environment variables: [working with environment variables](working%20with%20environment%20variables.md)
 - Usage: [how to use this project.md](how%20to%20use%20this%20project.md)
 - Testing: [how to test.md](how%20to%20test.md)
+- CA share endpoint: [ca-share-instructions.md](ca-share-instructions.md)
+- Add app behind Traefik: [add-app-via-traefik.md](add-app-via-traefik.md)
 
 ## Helpful Scripts
 

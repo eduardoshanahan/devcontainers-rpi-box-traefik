@@ -1,0 +1,77 @@
+---
+- name: Fail when CA share host is not defined
+  ansible.builtin.assert:
+    that:
+      - ca_share_host is defined
+      - ca_share_host | length > 0
+    fail_msg: >-
+      ca_share_host must be set per host (e.g. in host_vars).
+  when: ca_share_enabled
+
+- name: Set CA file path from Traefik export
+  ansible.builtin.set_fact:
+    ca_share_local_ca_file: >-
+      {{ (lookup('env', 'TRAEFIK_LOCAL_CERT_DIR') | default('/workspace/certs', true)) }}/rootCA.pem
+  when: ca_share_enabled
+
+- name: Ensure local mkcert CA file exists
+  ansible.builtin.stat:
+    path: "{{ ca_share_local_ca_file }}"
+  register: ca_share_local_ca_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: ca_share_enabled
+
+- name: Fail if local mkcert CA file is missing
+  ansible.builtin.assert:
+    that:
+      - ca_share_local_ca_stat.stat.exists
+    fail_msg: >-
+      mkcert rootCA.pem not found. Run the Traefik role to export the CA first.
+  when: ca_share_enabled
+
+- name: Ensure CA share stack directory exists
+  ansible.builtin.file:
+    path: "{{ ca_share_stack_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: ca_share_enabled
+
+- name: Ensure shared Docker network exists
+  community.docker.docker_network:
+    name: "{{ ca_share_docker_network }}"
+    state: present
+  when: ca_share_enabled
+
+- name: Copy mkcert CA file to target
+  ansible.builtin.copy:
+    src: "{{ ca_share_local_ca_file }}"
+    dest: "{{ ca_share_target_ca_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: ca_share_enabled
+  notify: Restart CA share container
+
+- name: Render CA share docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ ca_share_stack_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  when: ca_share_enabled
+  notify: Restart CA share container
+
+- name: Deploy CA share with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ ca_share_stack_dir }}"
+    state: present
+  when: ca_share_enabled
+
+- name: Apply CA share changes immediately
+  ansible.builtin.meta: flush_handlers
+  when: ca_share_enabled

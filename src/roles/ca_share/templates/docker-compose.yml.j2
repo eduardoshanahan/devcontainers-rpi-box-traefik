@@ -1,0 +1,20 @@
+services:
+  ca-share:
+    image: "{{ ca_share_image }}"
+    container_name: "{{ ca_share_container_name }}"
+    restart: unless-stopped
+    volumes:
+      - "{{ ca_share_target_ca_file }}:/usr/share/nginx/html/{{ ca_share_target_ca_file | basename }}:ro"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network={{ ca_share_docker_network }}"
+      - "traefik.http.routers.ca-share.rule=Host(`{{ ca_share_host }}`)"
+      - "traefik.http.routers.ca-share.entrypoints=websecure"
+      - "traefik.http.routers.ca-share.tls=true"
+      - "traefik.http.services.ca-share.loadbalancer.server.port=80"
+    networks:
+      - "{{ ca_share_docker_network }}"
+
+networks:
+  {{ ca_share_docker_network }}:
+    external: true

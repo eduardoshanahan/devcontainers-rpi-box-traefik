@@ -32,6 +32,7 @@ This repo deploys Traefik to Raspberry Pi hosts that already have the base OS/in
 - The Pi is already provisioned with the base OS/infra playbook (Docker Engine installed).
 - `/srv/apps` exists on the target (created by the base repo).
 - SSH access is working from your devcontainer.
+- Ports 80/443 must be free on the target (existing apps like Pi-hole may bind these; reconfigure them or Traefik won't start).
 
 ### Base Provisioning Responsibilities
 
@@ -46,6 +47,44 @@ Set `TRAEFIK_SYSTEMD_AUTOSTART=true` to install a systemd unit that runs
 `docker compose up -d` on boot. This recreates the container if it was removed,
 while keeping data in `/srv/apps/traefik`.
 
+### TLS Certificates (mkcert)
+
+This repo can generate the Traefik TLS certificate on the controller (your
+devcontainer) using mkcert and copy it to the Pi during deployment.
+
+1. Install mkcert on your controller and run it once to trust the local CA:
+
+   ```bash
+   mkcert -install
+   ```
+
+2. Ensure `TRAEFIK_LOCAL_CERT_DIR` in `.env` points to the repo-local directory
+   (default: `/workspace/certs`).
+
+3. Set `traefik_cert_hosts` in `src/inventory/group_vars/all.yml` to the SANs you want on
+   the wildcard certificate, for example:
+
+   ```yaml
+   traefik_cert_hosts:
+     - "*.rpi-box-01.hhlab.home.arpa"
+     - "*.rpi-box-02.hhlab.home.arpa"
+   ```
+
+4. Run the playbook. It will generate the cert/key locally (if missing) and copy
+   them to `TRAEFIK_CERT_FILE` and `TRAEFIK_KEY_FILE` on the target.
+
+5. Trust the mkcert CA on client devices so browsers accept the HTTPS certs.
+
+6. If the local mkcert CA changes, the playbook will automatically regenerate
+   the Traefik cert and restart Traefik so it starts serving the new chain.
+   Client devices must install the updated CA.
+
+### CA Share Endpoint (Optional)
+
+You can expose the mkcert root CA over HTTPS so clients can download and install
+it easily. See `ca-share-instructions.md` for enabling the endpoint and Ubuntu/
+Windows install steps.
+
 ## 2. Configure Inventory Host Vars
 
 1. Copy the example host vars file and keep the real one out of git:
@@ -55,6 +94,7 @@ while keeping data in `/srv/apps/traefik`.
    ```
 
 2. Edit `src/inventory/host_vars/rpi_box_01.yml` with the correct `ansible_host` and `ansible_port`.
+
 ## 3. Verify Ansible Connectivity
 
 ```bash
@@ -69,4 +109,4 @@ cd src
 ansible-playbook playbooks/pi-apps.yml -l rpi_box_01
 ```
 
-Traefik should be available at `http://<pi-ip>:<TRAEFIK_WEB_PORT>/admin/`.
+Traefik should be available at `http://<pi-ip>:<TRAEFIK_WEB_PORT>/dashboard/`.

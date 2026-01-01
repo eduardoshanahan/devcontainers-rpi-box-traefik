@@ -8,7 +8,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl \
     git \
     jq \
+    libnss3-tools \
     locales \
+    mkcert \
     openssh-client \
     python3 \
     python3-pip \

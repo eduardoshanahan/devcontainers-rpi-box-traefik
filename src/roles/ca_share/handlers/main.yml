@@ -1,0 +1,7 @@
+---
+- name: Restart CA share container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - restart
+      - "{{ ca_share_container_name }}"

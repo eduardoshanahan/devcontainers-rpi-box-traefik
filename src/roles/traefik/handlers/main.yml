@@ -1,4 +1,10 @@
 ---
+- name: Restart Traefik container
+  ansible.builtin.command:
+    argv:
+      - docker
+      - restart
+      - "{{ traefik_container_name }}"
 - name: Restart systemd-resolved
   ansible.builtin.systemd:
     name: systemd-resolved

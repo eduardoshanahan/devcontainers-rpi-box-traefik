@@ -1,0 +1,8 @@
+---
+# Global variables shared across playbooks
+ansible_python_interpreter: "/usr/bin/python3"
+
+# SANs used to generate the Traefik TLS certificate via mkcert
+traefik_cert_hosts:
+  - "*.rpi-box-01.hhlab.home.arpa"
+  - "*.rpi-box-02.hhlab.home.arpa"

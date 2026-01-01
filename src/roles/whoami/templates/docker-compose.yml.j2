@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network={{ whoami_docker_network }}"
       - "traefik.http.routers.whoami.rule=Host(`{{ whoami_host }}`)"
       - "traefik.http.routers.whoami.entrypoints=websecure"
       - "traefik.http.routers.whoami.tls=true"

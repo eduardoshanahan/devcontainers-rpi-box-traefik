@@ -16,6 +16,34 @@
     fail_msg: >-
       Missing required environment variables: {{ whoami_missing_env | join(', ') }}
 
+- name: Fail when whoami host is not defined
+  ansible.builtin.assert:
+    that:
+      - whoami_host is defined
+      - whoami_host | length > 0
+    fail_msg: >-
+      whoami_host must be set per host (e.g. in host_vars).
+
+- name: Build allowed certificate suffixes for whoami host
+  ansible.builtin.set_fact:
+    whoami_cert_suffixes: >-
+      {{ traefik_cert_hosts
+         | map('trim')
+         | map('regex_replace', '^[*][.]', '')
+         | map('lower')
+         | list }}
+    whoami_host_suffix: >-
+      {{ (whoami_host | lower | trim).split('.', 1)[1] }}
+
+- name: Ensure whoami host matches Traefik certificate SANs
+  ansible.builtin.assert:
+    that:
+      - whoami_cert_suffixes | length > 0
+      - whoami_host_suffix in whoami_cert_suffixes
+    fail_msg: >-
+      whoami_host ({{ whoami_host }}) does not match any Traefik certificate SANs:
+      {{ whoami_cert_suffixes | join(', ') }}
+
 - name: Ensure whoami stack directory exists
   ansible.builtin.file:
     path: "{{ whoami_stack_dir }}"
@@ -41,3 +69,59 @@
   community.docker.docker_compose_v2:
     project_src: "{{ whoami_stack_dir }}"
     state: present
+
+- name: Pause before verifying whoami endpoint
+  ansible.builtin.pause:
+    seconds: "{{ whoami_verify_delay_seconds }}"
+  when: whoami_verify_enabled
+
+- name: Fetch Traefik routers via API
+  ansible.builtin.uri:
+    url: >-
+      http://{{ whoami_verify_target }}:{{ lookup('env', 'TRAEFIK_WEB_PORT') | default('8080', true) }}/api/http/routers
+    method: GET
+    return_content: true
+    status_code: 200
+  register: whoami_traefik_routers
+  retries: "{{ whoami_verify_retries }}"
+  delay: "{{ whoami_verify_retry_delay }}"
+  until: whoami_traefik_routers.status == 200
+  when: whoami_verify_enabled and whoami_verify_use_traefik_api
+
+- name: Ensure Traefik has a whoami router
+  ansible.builtin.assert:
+    that:
+      - >-
+        (whoami_traefik_routers.content | from_json)
+        | selectattr('rule', 'search', whoami_host)
+        | list
+        | length
+        > 0
+    fail_msg: >-
+      Traefik API does not report a router for {{ whoami_host }}.
+      Available rules: {{
+        (whoami_traefik_routers.content | from_json)
+        | map(attribute='rule')
+        | list
+      }}
+  when: whoami_verify_enabled and whoami_verify_use_traefik_api
+
+- name: Verify whoami endpoint via Traefik
+  ansible.builtin.uri:
+    url: >-
+      https://127.0.0.1:{{ lookup('env', 'TRAEFIK_HTTPS_PORT') | default('443', true) }}/
+    method: GET
+    return_content: true
+    status_code: 200
+    validate_certs: false
+    headers:
+      Host: "{{ whoami_host }}"
+      User-Agent: "ansible-traefik-verify"
+  register: whoami_verify_response
+  retries: "{{ whoami_verify_retries }}"
+  delay: "{{ whoami_verify_retry_delay }}"
+  until: whoami_verify_response.status == 200
+  failed_when: "'Hostname' not in (whoami_verify_response.content | default(''))"
+  delegate_to: "{{ inventory_hostname }}"
+  run_once: true
+  when: whoami_verify_enabled

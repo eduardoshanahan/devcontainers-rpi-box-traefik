@@ -9,3 +9,9 @@ ansible_port: 22
 ansible_user: "{{ lookup('env', 'ANSIBLE_USER') }}"
 ansible_ssh_private_key_file: >-
   {{ lookup('env', 'ANSIBLE_SSH_PRIVATE_KEY_FILE') }}
+
+# Whoami host used for Traefik routing
+whoami_host: "whoami.home.arpa"
+
+# CA share host used to download the mkcert root CA (optional)
+# ca_share_host: "ca.rpi-box-01.hhlab.home.arpa"

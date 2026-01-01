@@ -3,10 +3,18 @@ services:
     image: "{{ traefik_image }}"
     container_name: "{{ traefik_container_name }}"
     restart: unless-stopped
+    command:
+      - "--log.level=DEBUG"
+      - "--providers.docker=true"
     ports:
       - "{{ traefik_http_port }}:{{ traefik_http_port }}"
       - "{{ traefik_https_port }}:{{ traefik_https_port }}"
       - "{{ traefik_web_port }}:{{ traefik_web_port }}"
+{% if traefik_docker_api_version | length > 0 %}
+    environment:
+      DOCKER_HOST: "{{ traefik_docker_host }}"
+      DOCKER_API_VERSION: "{{ traefik_docker_api_version }}"
+{% endif %}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - "{{ traefik_config_dir }}/traefik.yml:/etc/traefik/traefik.yml:ro"

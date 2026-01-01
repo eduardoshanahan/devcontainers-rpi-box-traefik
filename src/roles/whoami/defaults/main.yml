@@ -2,14 +2,24 @@
 whoami_required_env_vars:
   - WHOAMI_IMAGE
   - WHOAMI_CONTAINER_NAME
-  - WHOAMI_HOST
   - WHOAMI_PORT
   - WHOAMI_DOCKER_NETWORK
   - WHOAMI_STACK_DIR
 
 whoami_image: "{{ lookup('env', 'WHOAMI_IMAGE') }}"
 whoami_container_name: "{{ lookup('env', 'WHOAMI_CONTAINER_NAME') }}"
-whoami_host: "{{ lookup('env', 'WHOAMI_HOST') }}"
 whoami_port: "{{ lookup('env', 'WHOAMI_PORT') }}"
 whoami_docker_network: "{{ lookup('env', 'WHOAMI_DOCKER_NETWORK') }}"
 whoami_stack_dir: "{{ lookup('env', 'WHOAMI_STACK_DIR') }}"
+
+whoami_verify_enabled: >-
+  {{ (lookup('env', 'WHOAMI_VERIFY_ENABLED') | default('true', true)) | lower == 'true' }}
+whoami_verify_target: "{{ ansible_host | default(inventory_hostname) }}"
+whoami_verify_delay_seconds: >-
+  {{ lookup('env', 'WHOAMI_VERIFY_DELAY_SECONDS') | default('5', true) | int }}
+whoami_verify_retries: >-
+  {{ lookup('env', 'WHOAMI_VERIFY_RETRIES') | default('10', true) | int }}
+whoami_verify_retry_delay: >-
+  {{ lookup('env', 'WHOAMI_VERIFY_RETRY_DELAY') | default('3', true) | int }}
+whoami_verify_use_traefik_api: >-
+  {{ (lookup('env', 'WHOAMI_VERIFY_USE_TRAEFIK_API') | default('true', true)) | lower == 'true' }}
