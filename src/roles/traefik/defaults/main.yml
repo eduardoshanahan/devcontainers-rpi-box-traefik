@@ -1,5 +1,11 @@
 ---
 traefik_required_env_vars:
+  - TRAEFIK_ENABLED
+
+traefik_enabled: "{{ lookup('env', 'TRAEFIK_ENABLED') }}"
+
+# When disabled, skip the Traefik role without requiring the rest of the Traefik env vars.
+traefik_required_env_vars_when_enabled:
   - TRAEFIK_IMAGE
   - TRAEFIK_CONTAINER_NAME
   - TRAEFIK_HTTP_PORT

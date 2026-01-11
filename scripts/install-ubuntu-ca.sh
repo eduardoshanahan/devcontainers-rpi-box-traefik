@@ -7,13 +7,20 @@ if [ "${EUID}" -ne 0 ]; then
     exit 1
 fi
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+default_hosts_file="${script_dir}/ca-hosts.txt"
+
 if [ $# -gt 0 ]; then
     ca_hosts=("$@")
+elif [ -f "$default_hosts_file" ]; then
+    mapfile -t ca_hosts < <(grep -E '^[^#[:space:]]' "$default_hosts_file")
+    if [ "${#ca_hosts[@]}" -eq 0 ]; then
+        echo "No CA hosts found in ${default_hosts_file}." >&2
+        exit 1
+    fi
 else
-    ca_hosts=(
-        "ca.rpi-box-01.hhlab.home.arpa"
-        "ca.rpi-box-02.hhlab.home.arpa"
-    )
+    echo "No CA hosts provided and ${default_hosts_file} is missing." >&2
+    exit 1
 fi
 
 install_dir="/usr/local/share/ca-certificates/rpi-ca"
@@ -38,6 +45,15 @@ if [ "${#ca_hosts[@]}" -gt 1 ]; then
     done
 fi
 
+first_ca=""
+for host in "${ca_hosts[@]}"; do
+    candidate="${install_dir}/ca-${host}.crt"
+    if [ -f "$candidate" ]; then
+        first_ca="$candidate"
+        break
+    fi
+done
+
 echo "Updating CA trust store (fresh rebuild)"
 update-ca-certificates --fresh
 
@@ -45,7 +61,7 @@ echo "Verifying endpoints against installed CA"
 verify_failed=0
 for host in "${ca_hosts[@]}"; do
     ca_file="${install_dir}/ca-${host}.crt"
-    if [ ! -f "$ca_file" ] && [ -n "${first_ca:-}" ]; then
+    if [ ! -f "$ca_file" ] && [ -n "$first_ca" ]; then
         ca_file="$first_ca"
     fi
     if [ ! -f "$ca_file" ]; then
@@ -84,7 +100,7 @@ if [ "${INSTALL_NSS:-false}" = "true" ]; then
         nss_user="${SUDO_USER:-$USER}"
         nss_home="$(getent passwd "$nss_user" | cut -d: -f6)"
         nss_db="sql:${nss_home}/.pki/nssdb"
-        nss_ca="${first_ca:-}"
+        nss_ca="$first_ca"
         if [ -z "$nss_ca" ] || [ ! -f "$nss_ca" ]; then
             nss_ca="${install_dir}/ca-${ca_hosts[0]}.crt"
         fi

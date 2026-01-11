@@ -1,0 +1,104 @@
+---
+- name: Initialize Pi-hole sync env validation list
+  ansible.builtin.set_fact:
+    pihole_sync_missing_env: []
+
+- name: Check required Pi-hole sync environment variables
+  ansible.builtin.set_fact:
+    pihole_sync_missing_env: "{{ pihole_sync_missing_env + [item] }}"
+  when: lookup('env', item) | length == 0
+  loop: "{{ pihole_sync_required_env_vars }}"
+
+- name: Fail when required Pi-hole sync environment variables are missing
+  ansible.builtin.assert:
+    that:
+      - pihole_sync_missing_env | length == 0
+    fail_msg: >-
+      Missing required environment variables: {{ pihole_sync_missing_env | join(', ') }}
+
+- name: Validate Pi-hole sync enabled value
+  ansible.builtin.assert:
+    that:
+      - pihole_sync_enabled | lower in ["true", "false"]
+    fail_msg: >-
+      PIHOLE_SYNC_ENABLED must be "true" or "false".
+
+- name: Set Pi-hole sync enabled boolean
+  ansible.builtin.set_fact:
+    pihole_sync_enabled_bool: "{{ pihole_sync_enabled | lower == 'true' }}"
+
+- name: Validate Pi-hole Traefik enabled value
+  ansible.builtin.assert:
+    that:
+      - pihole_traefik_enabled | lower in ["true", "false"]
+    fail_msg: >-
+      PIHOLE_TRAEFIK_ENABLED must be "true" or "false".
+
+- name: Validate Pi-hole sync verify enabled value
+  ansible.builtin.assert:
+    that:
+      - pihole_sync_verify_enabled | lower in ["true", "false"]
+    fail_msg: >-
+      PIHOLE_SYNC_VERIFY_ENABLED must be "true" or "false".
+
+- name: Require Pi-hole sync verify password when enabled
+  ansible.builtin.assert:
+    that:
+      - pihole_sync_verify_password | length > 0
+    fail_msg: >-
+      PIHOLE_SYNC_VERIFY_PASSWORD must be set when PIHOLE_SYNC_VERIFY_ENABLED is true.
+  when: pihole_sync_verify_enabled | lower == "true"
+
+- name: Select Pi-hole primary address
+  ansible.builtin.set_fact:
+    pihole_primary_address: >-
+      {{
+        (pihole_primary_url if (pihole_traefik_enabled | lower == 'true') else pihole_primary_ip)
+      }}
+    pihole_sync_verify_enabled_bool: "{{ pihole_sync_verify_enabled | lower == 'true' }}"
+
+- name: Check for Pi-hole compose file
+  ansible.builtin.stat:
+    path: "{{ pihole_compose_file }}"
+  register: pihole_compose_stat
+  when: pihole_sync_enabled_bool
+
+- name: Fail if Pi-hole compose file is missing
+  ansible.builtin.assert:
+    that:
+      - pihole_compose_stat.stat.exists
+    fail_msg: >-
+      Pi-hole compose file not found at {{ pihole_compose_file }}.
+  when: pihole_sync_enabled_bool
+
+- name: Update PRIMARY_PIHOLE to use Traefik hostname
+  ansible.builtin.replace:
+    path: "{{ pihole_compose_file }}"
+    regexp: '^(\\s*PRIMARY_PIHOLE:).*$'
+    replace: "\\1 \"{{ pihole_primary_address }}\""
+  when: pihole_sync_enabled_bool
+
+- name: Restart pihole-sync via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ pihole_compose_dir }}"
+    state: present
+  when: pihole_sync_enabled_bool
+
+- name: Verify Pi-hole primary API is reachable
+  ansible.builtin.uri:
+    url: "{{ pihole_primary_address.rstrip('/') }}/api/auth"
+    method: POST
+    body_format: json
+    body:
+      password: "{{ pihole_sync_verify_password }}"
+    status_code:
+      - 200
+      - 400
+      - 401
+      - 403
+    validate_certs: false
+  register: pihole_sync_primary_check
+  retries: 5
+  delay: 2
+  until: pihole_sync_primary_check.status in [200, 400, 401, 403]
+  when: pihole_sync_enabled_bool and pihole_sync_verify_enabled_bool

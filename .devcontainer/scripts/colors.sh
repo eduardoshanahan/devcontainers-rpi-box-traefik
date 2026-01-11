@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Color definitions
 COLOR_RESET='\[\033[0m\]'
@@ -17,4 +17,4 @@ BOLD_YELLOW='\[\033[1;33m\]'
 BOLD_BLUE='\[\033[1;34m\]'
 BOLD_MAGENTA='\[\033[1;35m\]'
 BOLD_CYAN='\[\033[1;36m\]'
-BOLD_WHITE='\[\033[1;37m\]' 
+BOLD_WHITE='\[\033[1;37m\]'

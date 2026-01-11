@@ -1,0 +1,3 @@
+ca.rpi-box-01.hhlab.home.arpa
+ca.rpi-box-02.hhlab.home.arpa
+ca.rpi-box-03.hhlab.home.arpa

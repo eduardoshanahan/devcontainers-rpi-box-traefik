@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 if [ $# -lt 1 ]; then
     printf 'Usage: %s /path/to/.devcontainer/scripts\n' "$0"
@@ -20,4 +20,4 @@ for f in env-loader.sh verify-git-ssh.sh init-devcontainer.sh post-create.sh \
     fi
 done
 
-echo "Done."
+printf '%s\n' "Done."

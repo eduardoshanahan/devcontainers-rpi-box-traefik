@@ -1,0 +1,48 @@
+---
+- name: Check Docker CLI availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - --version
+  register: docker_preflight_cli
+  changed_when: false
+
+- name: Fail when Docker CLI is missing
+  ansible.builtin.assert:
+    that:
+      - docker_preflight_cli.rc == 0
+    fail_msg: >-
+      Docker CLI is not available on the target. Install Docker before running this playbook.
+
+- name: Check Docker daemon availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - info
+  register: docker_preflight_daemon
+  changed_when: false
+  failed_when: false
+
+- name: Fail when Docker daemon is not running
+  ansible.builtin.assert:
+    that:
+      - docker_preflight_daemon.rc == 0
+    fail_msg: >-
+      Docker daemon is not running or not reachable. Start Docker before running this playbook.
+
+- name: Check Docker Compose v2 availability
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - version
+  register: docker_preflight_compose
+  changed_when: false
+  failed_when: false
+
+- name: Fail when Docker Compose v2 is missing
+  ansible.builtin.assert:
+    that:
+      - docker_preflight_compose.rc == 0
+    fail_msg: >-
+      Docker Compose v2 is not available on the target. Install it before running this playbook.

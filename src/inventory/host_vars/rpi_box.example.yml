@@ -15,3 +15,6 @@ whoami_host: "whoami.home.arpa"
 
 # CA share host used to download the mkcert root CA (optional)
 # ca_share_host: "ca.rpi-box-01.hhlab.home.arpa"
+
+# Traefik dashboard host exposed via HTTPS (optional)
+# traefik_dashboard_host: "traefik.rpi-box-01.hhlab.home.arpa"

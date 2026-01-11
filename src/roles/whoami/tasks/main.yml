@@ -24,6 +24,14 @@
     fail_msg: >-
       whoami_host must be set per host (e.g. in host_vars).
 
+- name: Fail when whoami host lacks a domain suffix
+  ansible.builtin.assert:
+    that:
+      - (whoami_host | trim) is search('\\.')
+      - ((whoami_host | trim).split('.', 1)[1] | length) > 0
+    fail_msg: >-
+      whoami_host must include a domain suffix (example: whoami.example.test).
+
 - name: Build allowed certificate suffixes for whoami host
   ansible.builtin.set_fact:
     whoami_cert_suffixes: >-

@@ -2,3 +2,14 @@ tls:
   certificates:
     - certFile: "/etc/traefik/certs/{{ traefik_cert_file | basename }}"
       keyFile: "/etc/traefik/certs/{{ traefik_key_file | basename }}"
+{% if traefik_dashboard_host is defined and traefik_dashboard_host | length > 0 %}
+
+http:
+  routers:
+    traefik-dashboard:
+      rule: "Host(`{{ traefik_dashboard_host }}`)"
+      service: "api@internal"
+      entryPoints:
+        - websecure
+      tls: {}
+{% endif %}

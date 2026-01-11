@@ -3,7 +3,25 @@
   hosts: raspberry_pi_boxes
   become: true
   gather_facts: true
+  vars:
+    traefik_enabled_raw: "{{ lookup('env', 'TRAEFIK_ENABLED') }}"
+    traefik_enabled: "{{ (lookup('env', 'TRAEFIK_ENABLED') | lower) == 'true' }}"
+  pre_tasks:
+    - name: Validate TRAEFIK_ENABLED env var
+      ansible.builtin.assert:
+        that:
+          - traefik_enabled_raw | length > 0
+          - traefik_enabled_raw | lower in ['true', 'false']
+        fail_msg: >-
+          TRAEFIK_ENABLED must be set to "true" or "false" in the controller environment (.env).
+      run_once: true
+      become: false
   roles:
-    - traefik
-    - whoami
-    - ca_share
+    - docker_preflight
+    - role: traefik
+      when: traefik_enabled
+    - role: whoami
+      when: traefik_enabled
+    - role: ca_share
+      when: traefik_enabled
+    - pihole_sync

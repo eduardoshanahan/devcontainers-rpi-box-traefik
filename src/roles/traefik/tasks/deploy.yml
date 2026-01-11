@@ -1,0 +1,534 @@
+---
+- name: Validate Traefik certificate paths
+  ansible.builtin.assert:
+    that:
+      - (traefik_cert_file | dirname) == traefik_cert_dir
+      - (traefik_key_file | dirname) == traefik_cert_dir
+    fail_msg: >-
+      TRAEFIK_CERT_FILE and TRAEFIK_KEY_FILE must live under TRAEFIK_CERT_DIR.
+
+- name: Validate Traefik systemd autostart value
+  ansible.builtin.assert:
+    that:
+      - traefik_systemd_autostart | lower in ["true", "false"]
+    fail_msg: >-
+      TRAEFIK_SYSTEMD_AUTOSTART must be "true" or "false".
+
+- name: Set Traefik systemd autostart boolean
+  ansible.builtin.set_fact:
+    traefik_systemd_autostart_enabled: "{{ traefik_systemd_autostart | lower == 'true' }}"
+
+- name: Check published Docker ports on the target
+  ansible.builtin.command:
+    argv:
+      - docker
+      - ps
+      - --format
+      - "{{ '{{.Names}}\\t{{.Ports}}' }}"
+  register: traefik_docker_ports
+  changed_when: false
+
+- name: Fail if Traefik ports are already in use by other containers
+  ansible.builtin.assert:
+    that:
+      - >-
+        traefik_docker_ports.stdout_lines
+        | reject('search', '^' ~ traefik_container_name ~ '\\t')
+        | select('search', '0\\.0\\.0\\.0:' ~ traefik_http_port ~ '->')
+        | list
+        | length
+        == 0
+      - >-
+        traefik_docker_ports.stdout_lines
+        | reject('search', '^' ~ traefik_container_name ~ '\\t')
+        | select('search', '0\\.0\\.0\\.0:' ~ traefik_https_port ~ '->')
+        | list
+        | length
+        == 0
+    fail_msg: >-
+      Traefik requires ports {{ traefik_http_port }}/{{ traefik_https_port }} to be free.
+      Stop or reconfigure the service using those ports before deploying Traefik.
+
+- name: Ensure Traefik certificate hosts are defined
+  ansible.builtin.assert:
+    that:
+      - traefik_cert_hosts is defined
+      - traefik_cert_hosts | length > 0
+    fail_msg: >-
+      traefik_cert_hosts must list one or more SANs for mkcert.
+
+- name: Fail when Traefik dashboard host lacks a domain suffix
+  ansible.builtin.assert:
+    that:
+      - (traefik_dashboard_host | trim) is search('\\.')
+      - ((traefik_dashboard_host | trim).split('.', 1)[1] | length) > 0
+    fail_msg: >-
+      traefik_dashboard_host must include a domain suffix (example: traefik.example.test).
+  when: traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
+
+- name: Build allowed certificate suffixes for Traefik dashboard host
+  ansible.builtin.set_fact:
+    traefik_dashboard_cert_suffixes: >-
+      {{ traefik_cert_hosts
+         | map('trim')
+         | map('regex_replace', '^[*][.]', '')
+         | map('lower')
+         | list }}
+    traefik_dashboard_host_suffix: >-
+      {{ (traefik_dashboard_host | lower | trim).split('.', 1)[1] }}
+  when: traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
+
+- name: Ensure Traefik dashboard host matches Traefik certificate SANs
+  ansible.builtin.assert:
+    that:
+      - traefik_dashboard_cert_suffixes | length > 0
+      - traefik_dashboard_host_suffix in traefik_dashboard_cert_suffixes
+    fail_msg: >-
+      traefik_dashboard_host ({{ traefik_dashboard_host }}) does not match any Traefik certificate SANs:
+      {{ traefik_dashboard_cert_suffixes | join(', ') }}
+  when: traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
+
+- name: Ensure local Traefik certificate directory exists
+  ansible.builtin.file:
+    path: "{{ traefik_local_cert_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Get mkcert CA root directory
+  ansible.builtin.command:
+    argv:
+      - mkcert
+      - -CAROOT
+  register: traefik_mkcert_caroot
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Set mkcert CA file path
+  ansible.builtin.set_fact:
+    traefik_local_ca_file: "{{ traefik_mkcert_caroot.stdout | trim }}/rootCA.pem"
+  delegate_to: localhost
+  run_once: true
+
+- name: Set mkcert environment for certificate generation
+  ansible.builtin.set_fact:
+    traefik_mkcert_env:
+      MKCERT_CAROOT: "{{ traefik_mkcert_caroot.stdout | trim }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Ensure local mkcert CA file exists
+  ansible.builtin.stat:
+    path: "{{ traefik_local_ca_file }}"
+  register: traefik_local_ca_stat
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: traefik_ca_verify_enabled
+
+- name: Install local mkcert CA when missing
+  ansible.builtin.command:
+    argv:
+      - mkcert
+      - -install
+  register: traefik_mkcert_install
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  run_once: true
+  environment: "{{ traefik_mkcert_env }}"
+  when: traefik_ca_verify_enabled and not traefik_local_ca_stat.stat.exists
+
+- name: Re-check local mkcert CA file exists
+  ansible.builtin.stat:
+    path: "{{ traefik_local_ca_file }}"
+  register: traefik_local_ca_stat_current
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: traefik_ca_verify_enabled
+
+- name: Fail if local mkcert CA file is missing
+  ansible.builtin.assert:
+    that:
+      - traefik_local_ca_stat_current.stat.exists
+    fail_msg: >-
+      mkcert rootCA.pem not found. Run "mkcert -install" on the controller first.
+  delegate_to: localhost
+  run_once: true
+  when: traefik_ca_verify_enabled
+
+- name: Check target Traefik certificate existence
+  ansible.builtin.stat:
+    path: "{{ traefik_cert_file }}"
+  register: traefik_target_cert_stat
+  when: traefik_ca_verify_enabled
+
+- name: Load target Traefik certificate for CA validation
+  ansible.builtin.slurp:
+    path: "{{ traefik_cert_file }}"
+  register: traefik_target_cert_slurp
+  when: traefik_ca_verify_enabled and traefik_target_cert_stat.stat.exists
+
+- name: Verify target Traefik certificate chains to local mkcert CA
+  block:
+    - name: Create temporary target certificate file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: ".crt"
+      register: traefik_target_cert_tmp
+      delegate_to: localhost
+
+    - name: Write target certificate to temporary file
+      ansible.builtin.copy:
+        content: "{{ traefik_target_cert_slurp.content | b64decode }}"
+        dest: "{{ traefik_target_cert_tmp.path }}"
+        mode: "0600"
+      delegate_to: localhost
+
+    - name: Verify target certificate with local mkcert CA
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - verify
+          - -CAfile
+          - "{{ traefik_local_ca_file }}"
+          - "{{ traefik_target_cert_tmp.path }}"
+      register: traefik_target_cert_verify
+      changed_when: false
+      delegate_to: localhost
+      failed_when: false
+  always:
+    - name: Remove temporary target certificate file
+      ansible.builtin.file:
+        path: "{{ traefik_target_cert_tmp.path | default('') }}"
+        state: absent
+      delegate_to: localhost
+  when: traefik_ca_verify_enabled and traefik_target_cert_stat.stat.exists
+
+- name: Mark target Traefik certificate mismatch with local CA
+  ansible.builtin.set_fact:
+    traefik_target_ca_mismatch: "{{ traefik_target_cert_verify.rc != 0 }}"
+  when: traefik_ca_verify_enabled and traefik_target_cert_stat.stat.exists
+
+- name: Remove local Traefik certificate when target CA mismatch is detected
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ traefik_local_cert_file }}"
+    - "{{ traefik_local_key_file }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: traefik_ca_verify_enabled and traefik_target_ca_mismatch | default(false)
+
+- name: Remove target Traefik certificate when CA mismatch is detected
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ traefik_cert_file }}"
+    - "{{ traefik_key_file }}"
+  when: traefik_ca_verify_enabled and traefik_target_ca_mismatch | default(false)
+
+- name: Mark Traefik certificate for regeneration due to target CA mismatch
+  ansible.builtin.set_fact:
+    traefik_cert_regenerated: true
+    traefik_cert_regen_reason: "target_ca_mismatch"
+  run_once: true
+  when: traefik_ca_verify_enabled and traefik_target_ca_mismatch | default(false)
+
+- name: Export mkcert root CA for CA share
+  ansible.builtin.copy:
+    src: "{{ traefik_local_ca_file }}"
+    dest: "{{ traefik_local_ca_export_file }}"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: traefik_ca_verify_enabled
+
+- name: Check local Traefik certificate ownership
+  ansible.builtin.stat:
+    path: "{{ traefik_local_cert_file }}"
+  delegate_to: localhost
+  become: true
+  register: traefik_local_cert_stat
+  run_once: true
+
+- name: Check local Traefik key ownership
+  ansible.builtin.stat:
+    path: "{{ traefik_local_key_file }}"
+  delegate_to: localhost
+  become: true
+  register: traefik_local_key_stat
+  run_once: true
+
+- name: Remove root-owned local Traefik certificate files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ traefik_local_cert_file }}"
+    - "{{ traefik_local_key_file }}"
+  when: >-
+    (traefik_local_cert_stat.stat.exists and traefik_local_cert_stat.stat.uid == 0) or
+    (traefik_local_key_stat.stat.exists and traefik_local_key_stat.stat.uid == 0)
+  delegate_to: localhost
+  become: true
+  run_once: true
+
+- name: Re-check local Traefik certificate existence
+  ansible.builtin.stat:
+    path: "{{ traefik_local_cert_file }}"
+  register: traefik_local_cert_stat_current
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Verify local Traefik certificate chains to mkcert CA
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - verify
+      - -CAfile
+      - "{{ traefik_local_ca_file }}"
+      - "{{ traefik_local_cert_file }}"
+  register: traefik_local_cert_verify
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: traefik_ca_verify_enabled and traefik_local_cert_stat_current.stat.exists
+  failed_when: false
+
+- name: Remove local Traefik certificate when CA mismatch is detected
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ traefik_local_cert_file }}"
+    - "{{ traefik_local_key_file }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: >-
+    traefik_ca_verify_enabled and
+    traefik_local_cert_stat_current.stat.exists and
+    traefik_local_cert_verify.rc != 0
+
+- name: Mark Traefik certificate for regeneration due to CA mismatch
+  ansible.builtin.set_fact:
+    traefik_cert_regenerated: true
+    traefik_cert_regen_reason: "ca_mismatch"
+  run_once: true
+  when: >-
+    traefik_ca_verify_enabled and
+    traefik_local_cert_stat_current.stat.exists and
+    traefik_local_cert_verify.rc != 0
+
+- name: Remove local Traefik certificate when forced regeneration is enabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ traefik_local_cert_file }}"
+    - "{{ traefik_local_key_file }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  when: traefik_force_regen_cert
+
+- name: Mark Traefik certificate for forced regeneration
+  ansible.builtin.set_fact:
+    traefik_cert_regenerated: true
+    traefik_cert_regen_reason: "force_regen"
+  run_once: true
+  when: traefik_force_regen_cert
+
+- name: Generate local Traefik TLS certificate with mkcert
+  ansible.builtin.command:
+    argv: "{{ ['mkcert', '-cert-file', traefik_local_cert_file, '-key-file', traefik_local_key_file] + traefik_cert_hosts }}"
+  args:
+    creates: "{{ traefik_local_cert_file }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  environment: "{{ traefik_mkcert_env }}"
+  register: traefik_cert_generation
+
+- name: Ensure local Traefik key permissions are readable by the controller user
+  ansible.builtin.file:
+    path: "{{ traefik_local_key_file }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Mark Traefik certificate regeneration when mkcert ran
+  ansible.builtin.set_fact:
+    traefik_cert_regenerated: true
+    traefik_cert_regen_reason: "mkcert_run"
+  run_once: true
+  when: traefik_cert_generation is changed
+
+- name: Ensure Traefik directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ traefik_stack_dir }}"
+    - "{{ traefik_config_dir }}"
+    - "{{ traefik_data_dir }}"
+    - "{{ traefik_cert_dir }}"
+
+- name: Copy Traefik TLS certificate to target
+  ansible.builtin.copy:
+    src: "{{ traefik_local_cert_file }}"
+    dest: "{{ traefik_cert_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Traefik container
+
+- name: Copy Traefik TLS key to target
+  ansible.builtin.copy:
+    src: "{{ traefik_local_key_file }}"
+    dest: "{{ traefik_key_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Traefik container
+
+- name: Ensure Traefik certificate files exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: traefik_cert_stats
+  loop:
+    - "{{ traefik_cert_file }}"
+    - "{{ traefik_key_file }}"
+
+- name: Fail if Traefik certificate files are missing
+  ansible.builtin.assert:
+    that:
+      - traefik_cert_stats.results | map(attribute='stat.exists') | min
+    fail_msg: >-
+      Traefik certificate or key file is missing. Expected files:
+      {{ traefik_cert_file }}, {{ traefik_key_file }}
+
+- name: Report Traefik certificate regeneration status
+  ansible.builtin.debug:
+    msg: >-
+      Traefik certificate regenerated on this run: {{ traefik_cert_regenerated }}
+      (reason: {{ traefik_cert_regen_reason }})
+  run_once: true
+
+- name: Load Traefik certificate for local verification
+  ansible.builtin.slurp:
+    path: "{{ traefik_cert_file }}"
+  register: traefik_cert_slurp
+  when: traefik_ca_verify_enabled
+
+- name: Verify Traefik certificate chains to local mkcert CA
+  block:
+    - name: Create temporary certificate file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: ".crt"
+      register: traefik_cert_tmp
+      delegate_to: localhost
+
+    - name: Write Traefik certificate to temporary file
+      ansible.builtin.copy:
+        content: "{{ traefik_cert_slurp.content | b64decode }}"
+        dest: "{{ traefik_cert_tmp.path }}"
+        mode: "0600"
+      delegate_to: localhost
+
+    - name: Verify Traefik certificate with local mkcert CA
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - verify
+          - -CAfile
+          - "{{ traefik_local_ca_file }}"
+          - "{{ traefik_cert_tmp.path }}"
+      register: traefik_cert_verify
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Fail if Traefik certificate does not chain to local mkcert CA
+      ansible.builtin.assert:
+        that:
+          - traefik_cert_verify.rc == 0
+        fail_msg: >-
+          Traefik certificate does not chain to the local mkcert CA.
+          Output: {{ traefik_cert_verify.stdout | default('') }} {{ traefik_cert_verify.stderr | default('') }}
+  always:
+    - name: Remove temporary certificate file
+      ansible.builtin.file:
+        path: "{{ traefik_cert_tmp.path | default('') }}"
+        state: absent
+      delegate_to: localhost
+  when: traefik_ca_verify_enabled
+
+- name: Create shared Docker network for Traefik
+  community.docker.docker_network:
+    name: "{{ traefik_docker_network }}"
+    state: present
+
+- name: Render Traefik static configuration
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: "{{ traefik_config_dir }}/traefik.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Traefik container
+
+- name: Render Traefik dynamic configuration
+  ansible.builtin.template:
+    src: dynamic.yml.j2
+    dest: "{{ traefik_config_dir }}/dynamic.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Traefik container
+
+- name: Render Traefik docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ traefik_stack_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Traefik container
+
+- name: Deploy Traefik with Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "{{ traefik_stack_dir }}"
+    state: present
+
+- name: Install Traefik systemd unit
+  ansible.builtin.template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: traefik_systemd_autostart_enabled
+
+- name: Enable Traefik systemd unit
+  ansible.builtin.systemd:
+    name: traefik
+    enabled: true
+    daemon_reload: true
+  when: traefik_systemd_autostart_enabled
