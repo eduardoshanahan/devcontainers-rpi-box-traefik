@@ -5,7 +5,7 @@ This project provides a helper that runs Claude Code inside the devcontainer.
 ## Prerequisites
 
 - Install the devcontainer CLI on the host: `npm install -g @devcontainers/cli`
-- Ensure `.env` is valid (run `./.devcontainer/scripts/validate-env.sh`).
+- Ensure `.env` is valid (run `./scripts/validate-env.sh`).
 - Ensure Claude Code is installed in the container (post-create installs it by default).
 
 ## Run the helper

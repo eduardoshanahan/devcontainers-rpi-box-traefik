@@ -1,25 +1,36 @@
 #!/bin/sh
 
-# Enable Starship prompt first
-if command -v starship >/dev/null 2>&1; then
-    eval "$(starship init bash)"
+# Ensure nounset doesn't break VS Code shell integration in interactive shells.
+set +u
+
+if [ -z "${WORKSPACE_FOLDER:-}" ]; then
+    printf '%s\n' "Warning: WORKSPACE_FOLDER is not set; devcontainer prompt setup is disabled." >&2
+    printf '%s\n' "Hint: start the devcontainer via ./devcontainer-launch.sh or ./editor-launch.sh." >&2
+    return 0
 fi
 
-# Load environment variables using shared loader (try workspace first)
-if [ -f "/workspace/.devcontainer/scripts/env-loader.sh" ]; then
-    # shellcheck disable=SC1090
-    . "/workspace/.devcontainer/scripts/env-loader.sh"
-    load_project_env "/workspace"
-elif [ -f "/workspace/.env" ]; then
-    # simple fallback
-    # shellcheck disable=SC1090
-    . "/workspace/.env"
-else
-    printf '%s\n' "Warning: .env not found in workspace; continuing without it"
+workspace_dir="$WORKSPACE_FOLDER"
+
+# Enable Starship prompt first
+if command -v starship >/dev/null 2>&1; then
+    if [ -f "${workspace_dir}/.devcontainer/config/starship.toml" ]; then
+        export STARSHIP_CONFIG="${workspace_dir}/.devcontainer/config/starship.toml"
+        mkdir -p "$HOME/.config"
+        cp "$STARSHIP_CONFIG" "$HOME/.config/starship.toml"
+    fi
+    eval "$(starship init bash)"
 fi
 
 if [ -f /etc/container.env ]; then
     . /etc/container.env
+fi
+
+# Validate environment early (don't kill interactive shells).
+validator="${workspace_dir}/.devcontainer/scripts/validate-env.sh"
+if [ -f "$validator" ]; then
+    sh "$validator" >/dev/null 2>&1 || {
+        printf '%s\n' "Warning: environment validation failed; see output from: ${validator}" >&2
+    }
 fi
 
 # Source SSH agent setup

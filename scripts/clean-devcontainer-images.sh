@@ -20,18 +20,21 @@ info() {
 }
 
 PROJECT_DIR="$(CDPATH= cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="$PROJECT_DIR/.env"
+ENV_LOADER="$PROJECT_DIR/.devcontainer/scripts/env-loader.sh"
 
-if [ ! -f "$ENV_FILE" ]; then
-  error "Cannot find .env at $ENV_FILE"
+if [ ! -f "$ENV_LOADER" ]; then
+  error "Cannot find env-loader at $ENV_LOADER"
   exit 1
 fi
 
-# Load environment variables from the project root .env
-set -a
 # shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+. "$ENV_LOADER"
+load_project_env "$PROJECT_DIR"
+
+if ! sh "$PROJECT_DIR/scripts/validate-env.sh" >/dev/null; then
+  error "Environment validation failed. Please fix your .env values."
+  exit 1
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   error "Docker is not installed!"

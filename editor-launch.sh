@@ -37,15 +37,10 @@ fi
 load_project_env "$PROJECT_DIR"
 
 # Validate environment variables before launching anything
-VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
-if [ -f "$VALIDATOR" ]; then
-  info "Validating environment variables..."
-  if ! sh "$VALIDATOR"; then
-    error "Environment validation failed. Please fix your .env values."
-    exit 1
-  fi
-else
-  info "Warning: validator not found at $VALIDATOR; skipping validation."
+info "Validating environment variables..."
+if ! sh "$PROJECT_DIR/scripts/validate-env.sh"; then
+  error "Environment validation failed. Please fix your .env values."
+  exit 1
 fi
 
 # Export variables explicitly for devcontainer
@@ -58,6 +53,7 @@ export GIT_REMOTE_URL
 export EDITOR_CHOICE
 export DOCKER_IMAGE_NAME
 export DOCKER_IMAGE_TAG
+export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_EDITOR}"
 
 # Validate editor choice
 if [ "${EDITOR_CHOICE}" != "code" ] && [ "${EDITOR_CHOICE}" != "cursor" ] && [ "${EDITOR_CHOICE}" != "antigravity" ]; then

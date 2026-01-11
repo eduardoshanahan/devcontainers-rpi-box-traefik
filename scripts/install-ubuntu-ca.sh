@@ -2,6 +2,10 @@
 
 set -euo pipefail
 
+# Optional behavior:
+# - Set INSTALL_NSS=true to also import the CA into the current user's NSS DB (Firefox/Chromium).
+#   Default: INSTALL_NSS=false
+
 if [ "${EUID}" -ne 0 ]; then
     echo "This script must run as root. Try: sudo $0 [ca-host ...]" >&2
     exit 1

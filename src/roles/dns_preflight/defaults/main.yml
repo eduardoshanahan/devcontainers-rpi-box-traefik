@@ -1,0 +1,14 @@
+---
+dns_preflight_site_domain: "{{ lookup('env', 'SITE_DOMAIN') }}"
+
+dns_preflight_name_resolution_mode: >-
+  {{ lookup('env', 'NAME_RESOLUTION_MODE') | default('hosts', true) | lower }}
+
+dns_preflight_check_scope: >-
+  {{ lookup('env', 'DNS_PREFLIGHT_CHECK') | default('target', true) | lower }}
+
+dns_preflight_ca_share_enabled: >-
+  {{ (lookup('env', 'CA_SHARE_ENABLED') | default('false', true)) | lower == 'true' }}
+
+dns_preflight_known_fqdns: []
+

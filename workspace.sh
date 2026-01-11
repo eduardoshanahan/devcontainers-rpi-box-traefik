@@ -30,9 +30,17 @@ is_container() {
 PROJECT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
 # This workspace is intended to be launched from the host machine (outside the devcontainer).
-if is_container && [ "${WORKSPACE_ALLOW_IN_CONTAINER:-0}" != "1" ] && [ "${WORKSPACE_ALLOW_IN_CONTAINER:-}" != "true" ]; then
+allow_in_container="${WORKSPACE_ALLOW_IN_CONTAINER:-false}"
+case "$allow_in_container" in
+  true|false) ;;
+  *)
+    error "WORKSPACE_ALLOW_IN_CONTAINER must be true or false (got: ${allow_in_container})"
+    exit 1
+    ;;
+esac
+if is_container && ! $allow_in_container; then
   error "This tmux workspace is intended to run on the host machine, not inside a container."
-  error "If you really want to run it in-container, set WORKSPACE_ALLOW_IN_CONTAINER=1 and retry."
+  error "If you really want to run it in-container, set WORKSPACE_ALLOW_IN_CONTAINER=true and retry."
   exit 1
 fi
 
@@ -47,16 +55,13 @@ fi
 . "$ENV_LOADER"
 load_project_env "$PROJECT_DIR"
 
-VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
-if [ -f "$VALIDATOR" ]; then
-  info "Validating environment variables..."
-  if ! sh "$VALIDATOR"; then
-    error "Environment validation failed. Please fix your .env values."
-    exit 1
-  fi
+info "Validating environment variables..."
+if ! sh "$PROJECT_DIR/scripts/validate-env.sh" >/dev/null; then
+  error "Environment validation failed. Please fix your .env values."
+  exit 1
 fi
 
-SESSION="${WORKSPACE_TMUX_SESSION:-${PROJECT_NAME:-}}"
+SESSION="${WORKSPACE_TMUX_SESSION:-$PROJECT_NAME}"
 if [ -z "$SESSION" ]; then
   error "WORKSPACE_TMUX_SESSION is not set and PROJECT_NAME is empty"
   exit 1

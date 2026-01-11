@@ -1,0 +1,86 @@
+---
+- name: Validate SITE_DOMAIN env var is set
+  ansible.builtin.assert:
+    that:
+      - dns_preflight_site_domain is defined
+      - dns_preflight_site_domain | trim | length > 0
+    fail_msg: >-
+      Required env var SITE_DOMAIN is missing or empty (set it in .env; see .env.example).
+  run_once: true
+  delegate_to: localhost
+  become: false
+
+- name: Validate NAME_RESOLUTION_MODE value
+  ansible.builtin.assert:
+    that:
+      - dns_preflight_name_resolution_mode in ["hosts", "dns"]
+    fail_msg: >-
+      NAME_RESOLUTION_MODE must be "hosts" or "dns" (current: {{ dns_preflight_name_resolution_mode }}).
+  run_once: true
+  delegate_to: localhost
+  become: false
+
+- name: Validate DNS_PREFLIGHT_CHECK value
+  ansible.builtin.assert:
+    that:
+      - dns_preflight_check_scope in ["target", "controller", "both"]
+    fail_msg: >-
+      DNS_PREFLIGHT_CHECK must be "target", "controller", or "both" (current: {{ dns_preflight_check_scope }}).
+  run_once: true
+  delegate_to: localhost
+  become: false
+
+- name: Build DNS preflight FQDN list
+  ansible.builtin.set_fact:
+    dns_preflight_known_fqdns: >-
+      {{
+        (
+          []
+          + ([whoami_host] if (whoami_host is defined and whoami_host | trim | length > 0) else [])
+          + ([ca_share_host] if (dns_preflight_ca_share_enabled and ca_share_host is defined and ca_share_host | trim | length > 0) else [])
+          + ([traefik_dashboard_host] if (traefik_dashboard_host is defined and traefik_dashboard_host | trim | length > 0) else [])
+        )
+        | map('trim')
+        | unique
+        | list
+      }}
+
+- name: Fail when CA_SHARE_ENABLED=true but ca_share_host is missing
+  ansible.builtin.assert:
+    that:
+      - ca_share_host is defined
+      - ca_share_host | trim | length > 0
+    fail_msg: >-
+      CA_SHARE_ENABLED=true requires ca_share_host to be set (e.g. in host_vars).
+  when: dns_preflight_ca_share_enabled
+
+- name: Skip DNS resolution checks when NAME_RESOLUTION_MODE=hosts
+  ansible.builtin.debug:
+    msg: "NAME_RESOLUTION_MODE=hosts; skipping DNS resolution preflight checks for {{ inventory_hostname }}."
+  when: dns_preflight_name_resolution_mode == "hosts"
+
+- name: Check name resolution from controller
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahosts
+      - "{{ item }}"
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  loop: "{{ dns_preflight_known_fqdns }}"
+  when:
+    - dns_preflight_name_resolution_mode == "dns"
+    - dns_preflight_check_scope in ["controller", "both"]
+
+- name: Check name resolution from target
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahosts
+      - "{{ item }}"
+  changed_when: false
+  loop: "{{ dns_preflight_known_fqdns }}"
+  when:
+    - dns_preflight_name_resolution_mode == "dns"
+    - dns_preflight_check_scope in ["target", "both"]

@@ -23,7 +23,7 @@ Set these in `.env` if you want to override defaults:
 
 - `WORKSPACE_TMUX_SESSION`: tmux session name (default: `PROJECT_NAME`)
 - `WORKSPACE_REMOTE_HOST`: host to use for the `ssh-box` window
-- `WORKSPACE_ALLOW_IN_CONTAINER`: set `1`/`true` to bypass the host-only guard (not recommended)
+- `WORKSPACE_ALLOW_IN_CONTAINER`: set `true` to bypass the host-only guard (not recommended)
 
 If `WORKSPACE_REMOTE_HOST` is not set, the `ssh-box` window prints a reminder instead of attempting SSH.
 

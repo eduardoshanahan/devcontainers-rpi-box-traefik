@@ -31,7 +31,7 @@ esac
 TRAEFIK_ENABLED_BOOL="$(printf '%s' "$TRAEFIK_ENABLED" | tr '[:upper:]' '[:lower:]')"
 if [ $# -lt 2 ]; then
     printf 'Usage: %s /path/to/playbook.yml /path/to/inventory.ini\n' "$0" >&2
-    printf 'Optional: set SMOKE_GROUP to override the default host group (default: _boxes).\n' >&2
+    printf 'Optional: set SMOKE_GROUP to override the default host group (default: raspberry_pi_boxes).\n' >&2
     exit 1
 fi
 

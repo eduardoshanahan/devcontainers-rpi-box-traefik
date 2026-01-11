@@ -17,6 +17,8 @@
       run_once: true
       become: false
   roles:
+    - role: dns_preflight
+      when: traefik_enabled
     - docker_preflight
     - role: traefik
       when: traefik_enabled

@@ -14,7 +14,7 @@ Implicit defaults or scattered configuration sources lead to inconsistent enviro
 Use the project-root `.env` as the single source of truth for devcontainer configuration:
 
 - Host launchers and devcontainer scripts load `.env` via `.devcontainer/scripts/env-loader.sh`.
-- Required variables are validated up front via `.devcontainer/scripts/validate-env.sh`.
+- Required variables are validated up front via `./scripts/validate-env.sh` (wrapper around `.devcontainer/scripts/validate-env.sh`).
 - Missing or invalid configuration fails fast with actionable errors.
 
 ## Consequences
@@ -27,4 +27,3 @@ Use the project-root `.env` as the single source of truth for devcontainer confi
 
 - Rely on ambient shell environment (rejected: error-prone, inconsistent)
 - Provide hidden defaults (rejected: violates fail-fast and masks misconfiguration)
-

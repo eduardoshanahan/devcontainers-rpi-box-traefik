@@ -6,7 +6,7 @@ This document defines the **standard, enforced approach** for exposing administr
 
 - Eliminate IP-based admin access
 - Standardize URLs using FQDNs
-- Avoid DNS ↔ reverse-proxy bootstrap issues
+- Avoid DNS/reverse-proxy bootstrap issues
 - Enable strict, predictable automation with Ansible
 
 This approach is opinionated by design.
@@ -248,4 +248,3 @@ Emergency access must be:
 - Ansible enforces everything
 
 This architecture is designed to scale cleanly from 2 to N Raspberry Pi boxes without behavioral changes.
-

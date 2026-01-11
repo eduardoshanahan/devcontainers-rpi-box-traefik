@@ -2,7 +2,7 @@
 
 ## Launch script fails validation
 
-- Run `./.devcontainer/scripts/validate-env.sh` to see the exact error.
+- Run `./scripts/validate-env.sh` to see the exact error.
 - Confirm `.env` matches your host user, UID, and GID.
 
 ## Devcontainer fails to start due to SSH_AUTH_SOCK

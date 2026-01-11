@@ -9,7 +9,8 @@ This directory contains various shell scripts that handle different aspects of t
 Configures the shell environment and sets up various aliases:
 
 - Initializes Starship prompt if available
-- Sources environment variables and other scripts
+- Assumes environment variables are already present (devcontainer started via the repo launchers)
+- Sources other helper scripts
 - Sets up Git aliases (gs, ga, gc, gp, gl, gd, gco, gb, glog)
 - Configures JSON processing aliases (jsonlint, jsonformat, jsonvalidate, jsonpretty)
 - Ensures bash is used as the default shell
@@ -27,8 +28,8 @@ Defines color variables for terminal output:
 
 Main initialization script that:
 
-- Sources color definitions and environment variables
-- Validates environment configuration
+- Sources color definitions
+- Validates environment configuration (expects launcher-started devcontainer)
 - Configures Git user information
 - Makes scripts executable
 - Sets up bashrc to source required scripts
@@ -38,7 +39,7 @@ Main initialization script that:
 
 Runs after container creation to:
 
-- Source and validate environment variables
+- Validate environment variables (expects launcher-started devcontainer)
 - Configure Git user information
 - Make scripts executable
 - Set up bashrc with required script sources
@@ -60,8 +61,8 @@ Manages SSH agent configuration:
 
 Validates environment variables:
 
-- Checks required variables (HOST_USERNAME, HOST_UID, HOST_GID)
-- Validates optional variables with defaults
+- Checks required variables and patterns
+- Validates selected optional variables
 - Uses regex patterns for validation
 - Provides detailed error messages
 - Returns non-zero exit code on validation failure
@@ -87,7 +88,7 @@ chmod +x /workspace/.devcontainer/scripts/init-devcontainer.sh
 The scripts have the following dependencies:
 
 - `colors.sh` is sourced by other scripts for colored output
-- `validate-env.sh` is called by `launch.sh` and `post-create.sh`
+- `validate-env.sh` is called by the launchers (via `./scripts/validate-env.sh`) and by `post-create.sh`
 - `bash-prompt.sh` and `ssh-agent-setup.sh` are sourced in bashrc
 
 ## Customization
@@ -137,11 +138,11 @@ chmod +x .devcontainer/scripts/verify-git-ssh.sh
 - Run the verifier:
 
 ```bash
-# Default target: git@github.com
-.devcontainer/scripts/verify-git-ssh.sh
-
-# Or target a different git host
+# Target a git host
 .devcontainer/scripts/verify-git-ssh.sh git@gitlab.com
+
+# Or set the host via env var
+GIT_SSH_HOST=git@github.com .devcontainer/scripts/verify-git-ssh.sh
 ```
 
 - What it checks:
@@ -152,12 +153,12 @@ chmod +x .devcontainer/scripts/verify-git-ssh.sh
 
 - Debugging env-loader interactions:
   - To see which env variables the loader set, enable debug when invoking load_project_env:
-    - export ENV_LOADER_DEBUG=1 before init (or pass `1` as second arg to the loader when sourcing manually).
+    - export ENV_LOADER_DEBUG=true before init (or pass `true` as second arg to the loader when sourcing manually).
   - Example (inside container):
 
     ```bash
-    source /workspace/.devcontainer/scripts/env-loader.sh
-    load_project_env /workspace 1
+    source "${WORKSPACE_FOLDER}/.devcontainer/scripts/env-loader.sh"
+    load_project_env "${WORKSPACE_FOLDER}" true
     ```
 
 This verifier is intended to quickly validate that SSH agent forwarding and Git configuration are working as expected in the devcontainer.

@@ -13,7 +13,7 @@ if [ ! -f "$ENV_LOADER" ]; then
     exit 1
 fi
 
-# Load variables: project root .env is authoritative, .devcontainer/config/.env supplies defaults
+# Load variables: project root .env is authoritative (single source of truth)
 # shellcheck disable=SC1090
 . "$ENV_LOADER"
 load_project_env "$PROJECT_DIR"
@@ -31,17 +31,23 @@ require_var "CONTAINER_MEMORY"
 require_var "CONTAINER_CPUS"
 require_var "CONTAINER_SHM_SIZE"
 require_var "CONTAINER_HOSTNAME"
+require_var "WORKSPACE_FOLDER"
+require_var "LOCALE"
 require_var "PYTHON_VERSION"
 require_var "ANSIBLE_CORE_VERSION"
 require_var "ANSIBLE_LINT_VERSION"
 require_var "YAMLLINT_VERSION"
+require_var "INSTALL_CLAUDE"
 
 printf '%s\n' "Container configuration:"
 printf '%s\n' "  Memory: $CONTAINER_MEMORY"
 printf '%s\n' "  CPUs: $CONTAINER_CPUS"
 printf '%s\n' "  Shared Memory: $CONTAINER_SHM_SIZE"
 printf '%s\n' "  Hostname: $CONTAINER_HOSTNAME"
+printf '%s\n' "  Workspace: $WORKSPACE_FOLDER"
+printf '%s\n' "  Locale: $LOCALE"
 printf '%s\n' "  Python: $PYTHON_VERSION"
 printf '%s\n' "  Ansible Core: $ANSIBLE_CORE_VERSION"
 printf '%s\n' "  Ansible Lint: $ANSIBLE_LINT_VERSION"
 printf '%s\n' "  Yamllint: $YAMLLINT_VERSION"
+printf '%s\n' "  Install Claude: $INSTALL_CLAUDE"

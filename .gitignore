@@ -10,7 +10,6 @@
 .env
 # .env.*
 !.env.example
-.devcontainer/config/.env
 # .devcontainer/.env
 
 # Devcontainer markers

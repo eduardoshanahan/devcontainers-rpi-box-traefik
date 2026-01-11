@@ -218,10 +218,10 @@ Important principles:
 
 ## 14. Common Pitfalls
 
-❌ Binding ports 80/443 in applications
-❌ Using IP-based URLs instead of hostnames
-❌ Expecting Let's Encrypt to work with `.arpa`
-❌ Centralizing routes inside Traefik config
+- Do not bind ports 80/443 in applications
+- Do not use IP-based URLs instead of hostnames
+- Do not expect Let's Encrypt to work with `.arpa`
+- Do not centralize routes inside Traefik config
 
 ---
 

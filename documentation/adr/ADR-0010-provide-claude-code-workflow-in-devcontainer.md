@@ -20,7 +20,7 @@ We want a workflow that is:
 Provide an optional Claude Code workflow in the devcontainer:
 
 - Include a host launcher (`./claude-launch.sh`) that starts the devcontainer and runs `claude` inside it.
-- Install Claude Code during devcontainer post-create unless explicitly skipped via `SKIP_CLAUDE_INSTALL=1`.
+- Install the Claude CLI during devcontainer image build when `INSTALL_CLAUDE=true` (the Claude launcher forces this on).
 - Allow optional checksum verification of the installer script via `CLAUDE_INSTALL_SHA256` when set and validated.
 - Add the VS Code extension `anthropic.claude-code` in `.devcontainer/devcontainer.json` (without removing other extensions).
 

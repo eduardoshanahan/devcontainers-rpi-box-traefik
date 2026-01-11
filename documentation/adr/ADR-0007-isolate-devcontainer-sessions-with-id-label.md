@@ -19,7 +19,7 @@ Isolate non-editor workflows by labeling their devcontainer resources:
 
 - Each launcher uses a distinct `--id-label` (for example `devcontainer.session=${PROJECT_NAME}-cli`)
 - CLI and Claude launchers use unique container names when needed to avoid collisions with the editor container
-- CLI/Claude containers stop automatically at session end unless `KEEP_CONTAINER` is set
+- CLI/Claude containers stop automatically at session end unless the launcher-specific keep flag is set (`KEEP_CONTAINER_DEVCONTAINER=true` or `KEEP_CONTAINER_CLAUDE=true`)
 
 ## Consequences
 

@@ -29,7 +29,7 @@
 - Do we expect Wi‑Fi setup, static IP, or VLAN tagging? Might belong in `pi_network` role before Docker.
 - What compose workloads are first on the list (Portainer, Home Assistant, custom app)? That influences how we structure data directories and secrets handling.
 
-## Confirmed Direction (Session ✅)
+## Confirmed Direction (Session: confirmed)
 
 - **OS + media**: Ubuntu Server **22.04 LTS (64-bit)** will be flashed onto an SD card. Raspberry Pi Imager is the preferred workflow, but any flashing tool is acceptable as long as it yields the two partitions (`system-boot`, `writable`).
 - **Imaging artifacts**: The canonical cloud-init seed lives in `non_comitted_files/system-boot/`. Copy those `meta-data`, `network-config`, `user-data`, and the empty `ssh` flag straight into the freshly-flashed `system-boot` partition before first boot so SSH comes up immediately.

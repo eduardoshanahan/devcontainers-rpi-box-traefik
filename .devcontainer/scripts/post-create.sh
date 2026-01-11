@@ -1,23 +1,81 @@
 #!/bin/sh
 
-set -e
+set -eu
 
-# Load environment variables via shared loader (project root .env is authoritative)
-if [ -f "/workspace/.devcontainer/scripts/env-loader.sh" ]; then
-    # shellcheck disable=SC1090
-    . "/workspace/.devcontainer/scripts/env-loader.sh"
-    load_project_env "/workspace"
-elif [ -f "$HOME/.devcontainer/scripts/env-loader.sh" ]; then
-    # shellcheck disable=SC1090
-    . "$HOME/.devcontainer/scripts/env-loader.sh"
-    load_project_env "/workspace"
-else
-    printf '%s\n' "Warning: env-loader.sh not found; skipping environment load"
+if [ -z "${WORKSPACE_FOLDER:-}" ]; then
+    printf '%s\n' "Error: WORKSPACE_FOLDER is not set." >&2
+    printf '%s\n' "This devcontainer is supported only when started via ./devcontainer-launch.sh or ./editor-launch.sh." >&2
+    exit 1
 fi
+
+workspace_dir="$WORKSPACE_FOLDER"
+
+# Validate environment (including SSH agent forwarding).
+VALIDATOR="${workspace_dir}/.devcontainer/scripts/validate-env.sh"
+if [ -f "$VALIDATOR" ]; then
+    printf '%s\n' "Validating environment variables..."
+    if ! sh "$VALIDATOR"; then
+        printf '%s\n' "Error: Environment validation failed." >&2
+        printf '%s\n' "Hint: start the devcontainer via ./devcontainer-launch.sh or ./editor-launch.sh." >&2
+        exit 1
+    fi
+else
+    printf '%s\n' "Error: validate-env.sh not found at $VALIDATOR" >&2
+    exit 1
+fi
+
+# Ensure VS Code shell integration variables are set early to avoid nounset errors.
+ensure_bashrc_guard() {
+    bashrc_file="${HOME}/.bashrc"
+    guard_start="# >>> devcontainer guard >>>"
+
+    if [ ! -f "$bashrc_file" ]; then
+        : > "$bashrc_file"
+    fi
+
+    if grep -qF "$guard_start" "$bashrc_file"; then
+        return 0
+    fi
+
+    make_temp_file() {
+        tmp_dir="${TMPDIR:-/tmp}"
+        umask 077
+        i=0
+        while :; do
+            i=$((i + 1))
+            path="${tmp_dir}/post-create.$$.$i"
+            if (set -C; : > "$path") 2>/dev/null; then
+                printf '%s' "$path"
+                return 0
+            fi
+            [ "$i" -ge 100 ] && return 1
+        done
+    }
+
+    tmp_file="$(make_temp_file)"
+    if [ -z "$tmp_file" ]; then
+        printf '%s\n' "Warning: failed to create temp file for .bashrc guard; skipping" >&2
+        return 0
+    fi
+
+    {
+        cat <<'EOF'
+# >>> devcontainer guard >>>
+# Avoid nounset errors from VS Code shell integration.
+export VSCODE_SHELL_LOGIN="${VSCODE_SHELL_LOGIN:-}"
+# <<< devcontainer guard <<<
+EOF
+        cat "$bashrc_file"
+    } > "$tmp_file"
+
+    mv "$tmp_file" "$bashrc_file"
+}
+
+ensure_bashrc_guard
 
 # Configure Git if variables are set
 if [ -n "${GIT_USER_NAME-}" ] && [ -n "${GIT_USER_EMAIL-}" ]; then
-    REPO_DIR="/workspace"
+    REPO_DIR="$workspace_dir"
     if [ -d "$REPO_DIR/.git" ]; then
         printf '%s\n' "Configuring repo-local Git identity:"
         printf '%s\n' "  Name:  $GIT_USER_NAME"
@@ -33,15 +91,17 @@ fi
 
 # Add workspace to Git safe directories
 printf '%s\n' "Configuring Git safe directories..."
-git config --global --add safe.directory /workspace
-git config --global --add safe.directory "/home/${USERNAME:-}/.devcontainer"
+git config --global --add safe.directory "$workspace_dir"
+if [ -n "${USERNAME:-}" ]; then
+    git config --global --add safe.directory "/home/${USERNAME}/.devcontainer"
+fi
 
 # Make scripts executable
-chmod +x /workspace/.devcontainer/scripts/bash-prompt.sh
-chmod +x /workspace/.devcontainer/scripts/ssh-agent-setup.sh
+chmod +x "${workspace_dir}/.devcontainer/scripts/bash-prompt.sh"
+chmod +x "${workspace_dir}/.devcontainer/scripts/ssh-agent-setup.sh"
 
 # Bootstrap Ansible workspace (collections/roles + Galaxy requirements)
-ANSIBLE_ROOT="/workspace/src"
+ANSIBLE_ROOT="${workspace_dir}/src"
 ANSIBLE_REQUIREMENTS_FILE="${ANSIBLE_ROOT}/requirements.yml"
 
 retry_galaxy_install() {
@@ -74,19 +134,19 @@ else
 fi
 
 # Ensure helper fixer is executable and run it to set permissions for helper scripts
-if [ -f "/workspace/.devcontainer/scripts/fix-permissions.sh" ]; then
-    chmod +x "/workspace/.devcontainer/scripts/fix-permissions.sh" 2>/dev/null || true
+if [ -f "${workspace_dir}/.devcontainer/scripts/fix-permissions.sh" ]; then
+    chmod +x "${workspace_dir}/.devcontainer/scripts/fix-permissions.sh" 2>/dev/null || true
     # Run fixer (non-fatal)
-    "/workspace/.devcontainer/scripts/fix-permissions.sh" "/workspace/.devcontainer/scripts" || true
+    "${workspace_dir}/.devcontainer/scripts/fix-permissions.sh" "${workspace_dir}/.devcontainer/scripts" || true
 fi
 
 # Source scripts in bashrc if not already present
-if ! grep -qE "(^|[[:space:]])(\.|source)[[:space:]]+/workspace/.devcontainer/scripts/bash-prompt.sh" "$HOME/.bashrc"; then
-    printf '%s\n' ". /workspace/.devcontainer/scripts/bash-prompt.sh" >> "$HOME/.bashrc"
+if ! grep -qF "${workspace_dir}/.devcontainer/scripts/bash-prompt.sh" "$HOME/.bashrc"; then
+    printf '%s\n' ". ${workspace_dir}/.devcontainer/scripts/bash-prompt.sh" >> "$HOME/.bashrc"
 fi
 
-if ! grep -qE "(^|[[:space:]])(\.|source)[[:space:]]+/workspace/.devcontainer/scripts/ssh-agent-setup.sh" "$HOME/.bashrc"; then
-    printf '%s\n' ". /workspace/.devcontainer/scripts/ssh-agent-setup.sh" >> "$HOME/.bashrc"
+if ! grep -qF "${workspace_dir}/.devcontainer/scripts/ssh-agent-setup.sh" "$HOME/.bashrc"; then
+    printf '%s\n' ". ${workspace_dir}/.devcontainer/scripts/ssh-agent-setup.sh" >> "$HOME/.bashrc"
 fi
 
 # Ensure login shells also inherit the alias setup by sourcing .bashrc

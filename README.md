@@ -6,9 +6,10 @@ provisioned by the [rpi-box project](https://github.com/eduardoshanahan/devconta
 ## Quick Start
 
 1. Copy `.env.example` to `.env`, then run `./launch.sh`.
-2. Reopen in container (VS Code/Cursor/Antigravity) to use the preconfigured Ansible tools.
-3. Configure inventory + host vars for your Pi.
-4. Run the apps playbook: `ansible-playbook src/playbooks/pi-apps.yml -l rpi_box_01`.
+2. Start the devcontainer via `./editor-launch.sh` (GUI) or `./devcontainer-launch.sh` (CLI); the devcontainer build expects environment variables to be exported by the launcher.
+3. Reopen in container (VS Code/Cursor/Antigravity) to use the preconfigured Ansible tools.
+4. Configure inventory + host vars for your Pi.
+5. Run the apps playbook: `ansible-playbook src/playbooks/pi-apps.yml -l rpi_box_01`.
 
 ## Key Docs
 

@@ -38,13 +38,10 @@ fi
 load_project_env "$PROJECT_DIR"
 
 # Validate environment
-VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
-if [ -f "$VALIDATOR" ]; then
-  info "Validating environment variables..."
-  if ! sh "$VALIDATOR"; then
-    error "Environment validation failed. Please fix your .env values."
-    exit 1
-  fi
+info "Validating environment variables..."
+if ! sh "$PROJECT_DIR/scripts/validate-env.sh"; then
+  error "Environment validation failed. Please fix your .env values."
+  exit 1
 fi
 
 # Check if devcontainer CLI is installed
@@ -73,36 +70,51 @@ export GIT_USER_EMAIL
 export GIT_REMOTE_URL
 export EDITOR_CHOICE
 export DOCKER_IMAGE_TAG
-export SKIP_CLAUDE_INSTALL=1
 
-# Use a unique container name for CLI sessions to avoid conflicts
+# Devcontainer CLI launcher uses a dedicated image/container name (not tied to EDITOR_CHOICE).
 LAUNCHER_TAG="cli"
-BASE_CONTAINER_NAME="${PROJECT_NAME}-${LAUNCHER_TAG}"
-DEFAULT_CONTAINER_NAME="${PROJECT_NAME}-${EDITOR_CHOICE:-code}"
 ID_LABEL="devcontainer.session=${PROJECT_NAME}-${LAUNCHER_TAG}"
-if [ -z "${DOCKER_IMAGE_NAME:-}" ] || [ "$DOCKER_IMAGE_NAME" = "$DEFAULT_CONTAINER_NAME" ] || [ "$DOCKER_IMAGE_NAME" = "${PROJECT_NAME}-code" ]; then
-  UNIQUE_SUFFIX="$(date +%s)-$$"
-  export DOCKER_IMAGE_NAME="${BASE_CONTAINER_NAME}-${UNIQUE_SUFFIX}"
-  export CONTAINER_HOSTNAME="${DOCKER_IMAGE_NAME}"
-fi
+export DOCKER_IMAGE_NAME="${PROJECT_NAME}-devcontainer"
+export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_DEVCONTAINER}"
 
 info "Ensuring devcontainer is running..."
 if [ -n "${DOCKER_IMAGE_NAME:-}" ] && [ -n "${DOCKER_IMAGE_TAG:-}" ]; then
-  info "Building devcontainer image ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}..."
-  devcontainer build --workspace-folder "$PROJECT_DIR" --image-name "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}" >/dev/null
+  force_rebuild="${FORCE_REBUILD:-false}"
+  case "$force_rebuild" in
+    true|false) ;;
+    *)
+      error "FORCE_REBUILD must be true or false (got: ${force_rebuild})"
+      exit 1
+      ;;
+  esac
+
+  if ! $force_rebuild && docker image inspect "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}" >/dev/null 2>&1; then
+    info "Using cached devcontainer image ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG} (set FORCE_REBUILD=true to rebuild)..."
+  else
+    info "Building devcontainer image ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}..."
+    devcontainer build --workspace-folder "$PROJECT_DIR" --image-name "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}" >/dev/null
+  fi
 fi
 if ! devcontainer exec --workspace-folder "$PROJECT_DIR" --id-label "$ID_LABEL" true >/dev/null 2>&1; then
   if docker ps -a --format '{{.Names}}' | grep -qx "${DOCKER_IMAGE_NAME}"; then
     info "Removing stale container: ${DOCKER_IMAGE_NAME}"
     docker rm -f "${DOCKER_IMAGE_NAME}" >/dev/null 2>&1 || true
   fi
-  devcontainer up --workspace-folder "$PROJECT_DIR" --id-label "$ID_LABEL" --remote-env "SKIP_CLAUDE_INSTALL=1" --remove-existing-container >/dev/null
+  devcontainer up --workspace-folder "$PROJECT_DIR" --id-label "$ID_LABEL" --remove-existing-container >/dev/null
 fi
 
 success "Devcontainer is running"
 info "Container will stop when this session ends."
 stop_container() {
-  if [ "${KEEP_CONTAINER:-}" = "1" ] || [ "${KEEP_CONTAINER:-}" = "true" ]; then
+  keep_container="${KEEP_CONTAINER_DEVCONTAINER:-false}"
+  case "$keep_container" in
+    true|false) ;;
+    *)
+      error "KEEP_CONTAINER_DEVCONTAINER must be true or false (got: ${keep_container})"
+      return 1
+      ;;
+  esac
+  if $keep_container; then
     return 0
   fi
   if devcontainer down --workspace-folder "$PROJECT_DIR" --id-label "$ID_LABEL" >/dev/null 2>&1; then

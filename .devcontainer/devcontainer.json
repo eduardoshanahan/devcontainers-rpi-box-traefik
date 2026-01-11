@@ -4,6 +4,9 @@
         "dockerfile": "Dockerfile",
         "context": ".",
         "args": {
+            "LOCALE": "${localEnv:LOCALE}",
+            "INSTALL_CLAUDE": "${localEnv:INSTALL_CLAUDE}",
+            "CLAUDE_INSTALL_SHA256": "${localEnv:CLAUDE_INSTALL_SHA256}",
             "USERNAME": "${localEnv:HOST_USERNAME}",
             "USER_UID": "${localEnv:HOST_UID}",
             "USER_GID": "${localEnv:HOST_GID}",
@@ -19,7 +22,7 @@
                 "ansible.python.interpreterPath": "/usr/bin/python3",
                 "ansible.validation.lint.enabled": true,
                 "ansible.validation.lint.path": "/usr/local/bin/ansible-lint",
-                "ansible.validation.lint.configFile": "/workspace/.ansible-lint",
+                "ansible.validation.lint.configFile": "${containerWorkspaceFolder}/.ansible-lint",
                 "editor.acceptSuggestionOnTab": false,
                 "editor.tabCompletion": "off",
                 "editor.acceptSuggestionOnEnter": "off",
@@ -35,6 +38,7 @@
                 "esbenp.prettier-vscode",
                 "dbaeumer.vscode-eslint",
                 "ms-vscode-remote.remote-containers",
+                "anthropic.claude-code",
                 "redhat.ansible",
                 "redhat.vscode-yaml",
                 "ms-python.python",
@@ -51,11 +55,12 @@
     },
     "remoteUser": "${localEnv:HOST_USERNAME}",
     "updateRemoteUserUID": true,
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
-    "workspaceFolder": "/workspace",
+    "workspaceMount": "source=${localWorkspaceFolder},target=${localEnv:WORKSPACE_FOLDER},type=bind,consistency=cached",
+    "workspaceFolder": "${localEnv:WORKSPACE_FOLDER}",
     "mounts": [
         "source=${localWorkspaceFolder}/.devcontainer,target=/home/${localEnv:HOST_USERNAME}/.devcontainer,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.ssh,target=/home/${localEnv:HOST_USERNAME}/.ssh,type=bind,consistency=cached"
+        "source=${localEnv:HOME}/.ssh,target=/home/${localEnv:HOST_USERNAME}/.ssh,type=bind,consistency=cached",
+        "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
     ],
     "postCreateCommand": "chmod +x ~/.devcontainer/scripts/post-create.sh && ~/.devcontainer/scripts/post-create.sh",
     "initializeCommand": "export CONTAINER_MEMORY=${localEnv:CONTAINER_MEMORY} && export CONTAINER_CPUS=${localEnv:CONTAINER_CPUS} && export CONTAINER_SHM_SIZE=${localEnv:CONTAINER_SHM_SIZE} && export CONTAINER_HOSTNAME=${localEnv:CONTAINER_HOSTNAME}",
@@ -63,7 +68,12 @@
         "USERNAME": "${localEnv:HOST_USERNAME}",
         "USER_UID": "${localEnv:HOST_UID}",
         "USER_GID": "${localEnv:HOST_GID}",
+        "WORKSPACE_FOLDER": "${localEnv:WORKSPACE_FOLDER}",
         "CONTAINER_HOSTNAME": "${localEnv:CONTAINER_HOSTNAME}",
+        "CONTAINER_HOSTNAME_EDITOR": "${localEnv:CONTAINER_HOSTNAME_EDITOR}",
+        "CONTAINER_HOSTNAME_DEVCONTAINER": "${localEnv:CONTAINER_HOSTNAME_DEVCONTAINER}",
+        "CONTAINER_HOSTNAME_CLAUDE": "${localEnv:CONTAINER_HOSTNAME_CLAUDE}",
+        "DEVCONTAINER_CONTEXT": "${localEnv:DEVCONTAINER_CONTEXT}",
         "GIT_USER_NAME": "${localEnv:GIT_USER_NAME}",
         "GIT_USER_EMAIL": "${localEnv:GIT_USER_EMAIL}",
         "GIT_REMOTE_URL": "${localEnv:GIT_REMOTE_URL}",
@@ -76,15 +86,14 @@
         "--name=${localEnv:DOCKER_IMAGE_NAME}",
         "--hostname=${localEnv:CONTAINER_HOSTNAME}",
         "--env-file=${localWorkspaceFolder}/.env",
-        "--env-file=${localWorkspaceFolder}/.devcontainer/config/.env",
-        "--env=SSH_AUTH_SOCK=${localEnv:SSH_AUTH_SOCK}",
+        "--env=SSH_AUTH_SOCK=/ssh-agent",
         "--memory=${localEnv:CONTAINER_MEMORY}",
         "--cpus=${localEnv:CONTAINER_CPUS}",
         "--shm-size=${localEnv:CONTAINER_SHM_SIZE}"
     ],
     "forwardPorts": [],
     "remoteEnv": {
-        "SSH_AUTH_SOCK": "${localEnv:SSH_AUTH_SOCK}",
+        "SSH_AUTH_SOCK": "/ssh-agent",
         "PATH": "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
     }
 }

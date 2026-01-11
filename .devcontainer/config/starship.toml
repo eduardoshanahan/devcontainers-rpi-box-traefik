@@ -3,17 +3,7 @@
 
 # Use custom format
 format = """
-[╭─](bold blue)\
-$username\
-$hostname\
-$directory\
-$git_branch\
-$git_status\
-$nodejs\
-$python\
-$docker_context\
-[╰─](bold blue)\
-$character"""
+[╭─](bold blue)$env_var$directory$git_branch$git_status\n[╰─](bold blue)$character"""
 
 # Disable the package module, hiding it from the prompt
 [package]
@@ -24,35 +14,35 @@ disabled = true
 success_symbol = "[➜](bold green) "
 error_symbol = "[✗](bold red) "
 
-# Username format
-[username]
-style_user = "bold blue"
-style_root = "bold black"
-show_always = true
-disabled = false
-
-# Hostname format
-[hostname]
-ssh_only = true
-prefix = " "
-style = "bold blue"
-disabled = false
-
 # Directory format
 [directory]
 style = "bold cyan"
 read_only = " "
 truncation_length = 3
+format = " ➜  [$path]($style)"
+
+# Show the project name when provided in .env
+[env_var.PROJECT_NAME]
+format = " [$env_value]($style)"
+style = "bold cyan"
+
+[env_var.DEVCONTAINER_CONTEXT]
+format = " ([$env_value]($style))"
+style = "bold blue"
+
+[line_break]
+disabled = false
 
 # Git branch format
 [git_branch]
-symbol = " "
+symbol = ""
 style = "bold purple"
+format = " ➜  branch: [$branch]($style)"
 
 # Git status format
 [git_status]
 style = "bold red"
-format = '([\[$all_status$ahead_behind\] ]($style) )'
+format = '[\[$all_status$ahead_behind\]]($style)'
 disabled = false
 
 # Node.js format
