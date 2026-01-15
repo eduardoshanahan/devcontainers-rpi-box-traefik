@@ -22,4 +22,13 @@ whoami_verify_retries: >-
 whoami_verify_retry_delay: >-
   {{ lookup('env', 'WHOAMI_VERIFY_RETRY_DELAY') | default('3', true) | int }}
 whoami_verify_use_traefik_api: >-
-  {{ (lookup('env', 'WHOAMI_VERIFY_USE_TRAEFIK_API') | default('true', true)) | lower == 'true' }}
+  {{ (lookup('env', 'WHOAMI_VERIFY_USE_TRAEFIK_API') | default('false', true)) | lower == 'true' }}
+
+whoami_security_headers_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_SECURITY_HEADERS_ENABLED') | default('true', true)) | lower == 'true' }}
+
+whoami_traefik_middlewares: >-
+  {{
+    (['admin-security-headers@file'] if whoami_security_headers_enabled else [])
+    | join(',')
+  }}

@@ -11,7 +11,11 @@
 - name: Set CA file path from Traefik export
   ansible.builtin.set_fact:
     ca_share_local_ca_file: >-
-      {{ (lookup('env', 'TRAEFIK_LOCAL_CERT_DIR') | default('/workspace/certs', true)) }}/rootCA.pem
+      {%- set ws = lookup('env', 'WORKSPACE_FOLDER') | default('/workspace', true) -%}
+      {%- set raw = lookup('env', 'TRAEFIK_LOCAL_CERT_DIR') | default(ws ~ '/certs', true) -%}
+      {%- set expanded = (raw | replace('${WORKSPACE_FOLDER}', ws) | replace('$WORKSPACE_FOLDER', ws) | trim) -%}
+      {%- set cert_dir = expanded if (expanded is match('^/')) else (ws ~ '/' ~ expanded) -%}
+      {{ cert_dir }}/rootCA.pem
   when: ca_share_enabled
 
 - name: Ensure local mkcert CA file exists
@@ -40,16 +44,35 @@
     mode: "0755"
   when: ca_share_enabled
 
+- name: Ensure CA share HTML directory exists
+  ansible.builtin.file:
+    path: "{{ ca_share_html_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: ca_share_enabled
+
 - name: Ensure shared Docker network exists
   community.docker.docker_network:
     name: "{{ ca_share_docker_network }}"
     state: present
   when: ca_share_enabled
 
-- name: Copy mkcert CA file to target
+- name: Copy mkcert CA file to target (stable)
   ansible.builtin.copy:
     src: "{{ ca_share_local_ca_file }}"
     dest: "{{ ca_share_target_ca_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: ca_share_enabled
+  notify: Restart CA share container
+
+- name: Render CA share landing page
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ ca_share_html_dir }}/index.html"
     owner: root
     group: root
     mode: "0644"

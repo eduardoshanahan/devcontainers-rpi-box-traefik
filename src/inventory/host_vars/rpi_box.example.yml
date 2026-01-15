@@ -10,11 +10,18 @@ ansible_user: "{{ lookup('env', 'ANSIBLE_USER') }}"
 ansible_ssh_private_key_file: >-
   {{ lookup('env', 'ANSIBLE_SSH_PRIVATE_KEY_FILE') }}
 
-# Whoami host used for Traefik routing
-whoami_host: "whoami.home.arpa"
+# Optional override for the box name used in FQDNs (must be DNS-safe: letters/numbers/hyphens).
+# Useful when your Ansible inventory hostname includes underscores (e.g. rpi_box_01).
+# box_name: "rpi-box-01"
 
-# CA share host used to download the mkcert root CA (optional)
+# Service FQDNs are derived by default as:
+#   whoami.<box_name>.<SITE_DOMAIN>
+#   ca.<box_name>.<SITE_DOMAIN>
+#   traefik.<box_name>.<SITE_DOMAIN>
+#
+# You can still override per-service hosts if needed:
+# whoami_host: "whoami.rpi-box-01.hhlab.home.arpa"
 # ca_share_host: "ca.rpi-box-01.hhlab.home.arpa"
-
-# Traefik dashboard host exposed via HTTPS (optional)
 # traefik_dashboard_host: "traefik.rpi-box-01.hhlab.home.arpa"
+
+# Note: CA share is optional and controlled via CA_SHARE_ENABLED in .env.

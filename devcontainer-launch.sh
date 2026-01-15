@@ -37,13 +37,6 @@ fi
 . "$ENV_LOADER"
 load_project_env "$PROJECT_DIR"
 
-# Validate environment
-info "Validating environment variables..."
-if ! sh "$PROJECT_DIR/scripts/validate-env.sh"; then
-  error "Environment validation failed. Please fix your .env values."
-  exit 1
-fi
-
 # Check if devcontainer CLI is installed
 if ! command -v devcontainer >/dev/null 2>&1; then
   error "devcontainer CLI is not installed!"
@@ -75,7 +68,23 @@ export DOCKER_IMAGE_TAG
 LAUNCHER_TAG="cli"
 ID_LABEL="devcontainer.session=${PROJECT_NAME}-${LAUNCHER_TAG}"
 export DOCKER_IMAGE_NAME="${PROJECT_NAME}-devcontainer"
+export CONTAINER_HOSTNAME_DEVCONTAINER="${CONTAINER_HOSTNAME_DEVCONTAINER:-${DOCKER_IMAGE_NAME}}"
 export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_DEVCONTAINER}"
+export DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-devcontainer}"
+export INSTALL_CLAUDE="${INSTALL_CLAUDE:-false}"
+export KEEP_CONTAINER_DEVCONTAINER="${KEEP_CONTAINER_DEVCONTAINER:-false}"
+export KEEP_CONTAINER_CLAUDE="${KEEP_CONTAINER_CLAUDE:-false}"
+export KEEP_CONTAINER_EDITOR="${KEEP_CONTAINER_EDITOR:-false}"
+
+# Validate environment (after launcher-derived defaults are set).
+info "Validating environment variables..."
+VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
+if [ -f "$VALIDATOR" ]; then
+  if ! sh "$VALIDATOR"; then
+    error "Environment validation failed. Please fix your .env values."
+    exit 1
+  fi
+fi
 
 info "Ensuring devcontainer is running..."
 if [ -n "${DOCKER_IMAGE_NAME:-}" ] && [ -n "${DOCKER_IMAGE_TAG:-}" ]; then

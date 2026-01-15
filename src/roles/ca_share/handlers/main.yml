@@ -5,3 +5,4 @@
       - docker
       - restart
       - "{{ ca_share_container_name }}"
+  changed_when: true

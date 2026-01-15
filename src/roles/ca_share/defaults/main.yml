@@ -5,4 +5,25 @@ ca_share_image: "{{ lookup('env', 'CA_SHARE_IMAGE') | default('nginx:alpine', tr
 ca_share_container_name: "{{ lookup('env', 'CA_SHARE_CONTAINER_NAME') | default('ca-share', true) }}"
 ca_share_stack_dir: "{{ lookup('env', 'CA_SHARE_STACK_DIR') | default('/srv/apps/ca-share', true) }}"
 ca_share_docker_network: "{{ lookup('env', 'CA_SHARE_DOCKER_NETWORK') | default('web', true) }}"
-ca_share_target_ca_file: "{{ ca_share_stack_dir }}/rootCA-{{ ca_share_host }}.pem"
+ca_share_html_dir: "{{ ca_share_stack_dir }}/html"
+
+# Stable path for clients (preferred)
+ca_share_target_ca_file: "{{ ca_share_html_dir }}/rootCA.pem"
+
+ca_share_admin_security_headers_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_SECURITY_HEADERS_ENABLED') | default('true', true)) | lower == 'true' }}
+ca_share_admin_basic_auth_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_BASIC_AUTH_ENABLED') | default('false', true)) | lower == 'true' }}
+ca_share_admin_ip_allowlist_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_IP_ALLOWLIST_ENABLED') | default('false', true)) | lower == 'true' }}
+
+ca_share_traefik_middlewares: >-
+  {{
+    (
+      []
+      + (['admin-security-headers@file'] if ca_share_admin_security_headers_enabled else [])
+      + (['admin-auth@file'] if ca_share_admin_basic_auth_enabled else [])
+      + (['admin-ipallow@file'] if ca_share_admin_ip_allowlist_enabled else [])
+    )
+    | join(',')
+  }}

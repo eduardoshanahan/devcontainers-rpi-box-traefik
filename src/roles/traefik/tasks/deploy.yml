@@ -57,6 +57,71 @@
     fail_msg: >-
       traefik_cert_hosts must list one or more SANs for mkcert.
 
+- name: Validate shared admin middleware settings
+  when: traefik_admin_basic_auth_enabled or traefik_admin_ip_allowlist_enabled
+  block:
+    - name: Require admin basic auth users when enabled
+      ansible.builtin.assert:
+        that:
+          - traefik_admin_basic_auth_users | trim | length > 0
+        fail_msg: >-
+          TRAEFIK_ADMIN_BASIC_AUTH_ENABLED=true requires TRAEFIK_ADMIN_BASIC_AUTH_USERS to be set.
+          Provide one or more htpasswd entries (comma-separated), e.g. "admin:$apr1$...".
+      when: traefik_admin_basic_auth_enabled
+
+    - name: Require admin IP allowlist when enabled
+      ansible.builtin.assert:
+        that:
+          - traefik_admin_ip_allowlist | trim | length > 0
+        fail_msg: >-
+          TRAEFIK_ADMIN_IP_ALLOWLIST_ENABLED=true requires TRAEFIK_ADMIN_IP_ALLOWLIST to be set
+          (comma-separated CIDRs), e.g. "192.168.0.0/16,10.0.0.0/8".
+      when: traefik_admin_ip_allowlist_enabled
+
+- name: Validate Traefik local certificate filenames (avoid cross-box collisions)
+  ansible.builtin.assert:
+    that:
+      - traefik_site_domain | length > 0
+      - traefik_box_name | length > 0
+      - traefik_box_name is match('^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')
+      - traefik_local_cert_file is search(traefik_box_name ~ '\\.' ~ traefik_site_domain)
+      - traefik_local_key_file is search(traefik_box_name ~ '\\.' ~ traefik_site_domain)
+    fail_msg: >-
+      Traefik local certificate filenames must be derived from box + SITE_DOMAIN to avoid collisions across multiple boxes.
+      Ensure SITE_DOMAIN is set and (optionally) set box_name to a DNS-safe value when inventory_hostname contains underscores.
+
+- name: Validate Traefik dashboard protection when enabled
+  when: traefik_dashboard_enabled
+  block:
+    - name: Require at least one Traefik dashboard access control mechanism
+      ansible.builtin.assert:
+        that:
+          - traefik_dashboard_basic_auth_enabled_effective or traefik_dashboard_ip_allowlist_enabled_effective
+        fail_msg: >-
+          TRAEFIK_DASHBOARD_ENABLED=true requires an access control mechanism.
+          Set TRAEFIK_DASHBOARD_BASIC_AUTH_ENABLED=true and provide TRAEFIK_DASHBOARD_BASIC_AUTH_USERS,
+          and/or set TRAEFIK_DASHBOARD_IP_ALLOWLIST_ENABLED=true with TRAEFIK_DASHBOARD_IP_ALLOWLIST.
+          Alternatively, set TRAEFIK_ADMIN_BASIC_AUTH_ENABLED/TRAEFIK_ADMIN_BASIC_AUTH_USERS and/or
+          TRAEFIK_ADMIN_IP_ALLOWLIST_ENABLED/TRAEFIK_ADMIN_IP_ALLOWLIST.
+
+    - name: Require dashboard basic auth users when basic auth is enabled
+      ansible.builtin.assert:
+        that:
+          - traefik_dashboard_basic_auth_users_effective | trim | length > 0
+        fail_msg: >-
+          TRAEFIK_DASHBOARD_BASIC_AUTH_ENABLED=true requires TRAEFIK_DASHBOARD_BASIC_AUTH_USERS to be set.
+          Provide one or more htpasswd entries (comma-separated), e.g. "admin:$apr1$...".
+      when: traefik_dashboard_basic_auth_enabled_effective
+
+    - name: Require dashboard IP allowlist when enabled
+      ansible.builtin.assert:
+        that:
+          - traefik_dashboard_ip_allowlist_effective | trim | length > 0
+        fail_msg: >-
+          TRAEFIK_DASHBOARD_IP_ALLOWLIST_ENABLED=true requires TRAEFIK_DASHBOARD_IP_ALLOWLIST to be set
+          (comma-separated CIDRs), e.g. "192.168.0.0/16,10.0.0.0/8".
+      when: traefik_dashboard_ip_allowlist_enabled_effective
+
 - name: Fail when Traefik dashboard host lacks a domain suffix
   ansible.builtin.assert:
     that:
@@ -64,7 +129,7 @@
       - ((traefik_dashboard_host | trim).split('.', 1)[1] | length) > 0
     fail_msg: >-
       traefik_dashboard_host must include a domain suffix (example: traefik.example.test).
-  when: traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
+  when: traefik_dashboard_enabled and traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
 
 - name: Build allowed certificate suffixes for Traefik dashboard host
   ansible.builtin.set_fact:
@@ -76,7 +141,7 @@
          | list }}
     traefik_dashboard_host_suffix: >-
       {{ (traefik_dashboard_host | lower | trim).split('.', 1)[1] }}
-  when: traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
+  when: traefik_dashboard_enabled and traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
 
 - name: Ensure Traefik dashboard host matches Traefik certificate SANs
   ansible.builtin.assert:
@@ -86,7 +151,7 @@
     fail_msg: >-
       traefik_dashboard_host ({{ traefik_dashboard_host }}) does not match any Traefik certificate SANs:
       {{ traefik_dashboard_cert_suffixes | join(', ') }}
-  when: traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
+  when: traefik_dashboard_enabled and traefik_dashboard_host is defined and traefik_dashboard_host | length > 0
 
 - name: Ensure local Traefik certificate directory exists
   ansible.builtin.file:
@@ -175,6 +240,7 @@
   when: traefik_ca_verify_enabled and traefik_target_cert_stat.stat.exists
 
 - name: Verify target Traefik certificate chains to local mkcert CA
+  when: traefik_ca_verify_enabled and traefik_target_cert_stat.stat.exists
   block:
     - name: Create temporary target certificate file
       ansible.builtin.tempfile:
@@ -208,7 +274,6 @@
         path: "{{ traefik_target_cert_tmp.path | default('') }}"
         state: absent
       delegate_to: localhost
-  when: traefik_ca_verify_enabled and traefik_target_cert_stat.stat.exists
 
 - name: Mark target Traefik certificate mismatch with local CA
   ansible.builtin.set_fact:
@@ -370,12 +435,13 @@
   become: false
   run_once: true
 
-- name: Mark Traefik certificate regeneration when mkcert ran
+- name: Update Traefik certificate regeneration status from mkcert result
   ansible.builtin.set_fact:
-    traefik_cert_regenerated: true
-    traefik_cert_regen_reason: "mkcert_run"
+    traefik_cert_regenerated: "{{ traefik_cert_regenerated or (traefik_cert_generation is changed) }}"
+    traefik_cert_regen_reason: >-
+      {{ 'mkcert_run' if (traefik_cert_generation is changed) else traefik_cert_regen_reason }}
+  changed_when: false
   run_once: true
-  when: traefik_cert_generation is changed
 
 - name: Ensure Traefik directories exist
   ansible.builtin.file:
@@ -438,6 +504,7 @@
   when: traefik_ca_verify_enabled
 
 - name: Verify Traefik certificate chains to local mkcert CA
+  when: traefik_ca_verify_enabled
   block:
     - name: Create temporary certificate file
       ansible.builtin.tempfile:
@@ -478,7 +545,6 @@
         path: "{{ traefik_cert_tmp.path | default('') }}"
         state: absent
       delegate_to: localhost
-  when: traefik_ca_verify_enabled
 
 - name: Create shared Docker network for Traefik
   community.docker.docker_network:

@@ -6,6 +6,15 @@ set -euo pipefail
 # - Set INSTALL_NSS=true to also import the CA into the current user's NSS DB (Firefox/Chromium).
 #   Default: INSTALL_NSS=false
 
+install_nss="${INSTALL_NSS:-false}"
+case "$install_nss" in
+    true|false) ;;
+    *)
+        echo "INSTALL_NSS must be true or false (got: ${install_nss})" >&2
+        exit 1
+        ;;
+esac
+
 if [ "${EUID}" -ne 0 ]; then
     echo "This script must run as root. Try: sudo $0 [ca-host ...]" >&2
     exit 1
@@ -32,8 +41,7 @@ mkdir -p "$install_dir"
 rm -f "${install_dir}/"*.crt
 
 for host in "${ca_hosts[@]}"; do
-    filename="rootCA-${host}.pem"
-    url="https://${host}/${filename}"
+    url="https://${host}/rootCA.pem"
     dest="${install_dir}/ca-${host}.crt"
     echo "Downloading ${url}"
     curl -fsSLk -o "$dest" "$url"
@@ -99,7 +107,7 @@ if [ "$verify_failed" -ne 0 ]; then
     exit 1
 fi
 
-if [ "${INSTALL_NSS:-false}" = "true" ]; then
+if [ "$install_nss" = "true" ]; then
     if command -v certutil >/dev/null 2>&1; then
         nss_user="${SUDO_USER:-$USER}"
         nss_home="$(getent passwd "$nss_user" | cut -d: -f6)"

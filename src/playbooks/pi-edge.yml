@@ -1,5 +1,5 @@
 ---
-- name: Deploy Raspberry Pi applications
+- name: Deploy Raspberry Pi edge components (Traefik, CA share)
   hosts: raspberry_pi_boxes
   become: true
   gather_facts: true
@@ -29,9 +29,8 @@
         - traefik_enabled
         - traefik_cert_hosts is not defined or traefik_cert_hosts | length == 0
 
-    - name: Derive service hosts from scheme when missing
+    - name: Derive CA share host from scheme when missing
       ansible.builtin.set_fact:
-        whoami_host: "{{ whoami_host | default('whoami.' ~ box_name_resolved ~ '.' ~ site_domain) }}"
         ca_share_host: "{{ ca_share_host | default('ca.' ~ box_name_resolved ~ '.' ~ site_domain) }}"
       when: traefik_enabled
 
@@ -45,5 +44,7 @@
     - role: dns_preflight
       when: traefik_enabled
     - docker_preflight
-    - role: whoami
+    - role: traefik
+      when: traefik_enabled
+    - role: ca_share
       when: traefik_enabled

@@ -1,0 +1,73 @@
+---
+- name: Generate mkcert certificates for all boxes (controller only)
+  hosts: raspberry_pi_boxes
+  gather_facts: false
+  become: false
+  vars:
+    cert_site_domain: "{{ lookup('env', 'SITE_DOMAIN') | trim | lower }}"
+    cert_box_name: "{{ (box_name | default(inventory_hostname)) | trim | lower }}"
+    cert_workspace_folder: "{{ lookup('env', 'WORKSPACE_FOLDER') | default('/workspace', true) }}"
+    cert_output_dir_raw: >-
+      {{ lookup('env', 'TRAEFIK_LOCAL_CERT_DIR') | default(cert_workspace_folder ~ '/certs', true) }}
+    cert_output_dir_expanded: >-
+      {{
+        cert_output_dir_raw
+        | replace('${WORKSPACE_FOLDER}', cert_workspace_folder)
+        | replace('$WORKSPACE_FOLDER', cert_workspace_folder)
+        | trim
+      }}
+    cert_output_dir: >-
+      {{
+        cert_output_dir_expanded
+        if (cert_output_dir_expanded is match('^/'))
+        else (cert_workspace_folder ~ '/' ~ cert_output_dir_expanded)
+      }}
+    cert_hosts:
+      - "*.{{ cert_box_name }}.{{ cert_site_domain }}"
+      - "{{ cert_box_name }}.{{ cert_site_domain }}"
+    cert_file: "{{ cert_output_dir }}/{{ cert_box_name }}.{{ cert_site_domain }}.crt"
+    key_file: "{{ cert_output_dir }}/{{ cert_box_name }}.{{ cert_site_domain }}.key"
+
+  pre_tasks:
+    - name: Validate SITE_DOMAIN env var is set (controller)
+      ansible.builtin.assert:
+        that:
+          - cert_site_domain | length > 0
+          - cert_site_domain is search('\\.')
+        fail_msg: >-
+          SITE_DOMAIN must be set in the controller environment (.env).
+      delegate_to: localhost
+      when: inventory_hostname == (ansible_play_hosts_all | sort | first)
+
+    - name: Validate box name is DNS-safe
+      ansible.builtin.assert:
+        that:
+          - cert_box_name | length > 0
+          - cert_box_name is match('^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')
+        fail_msg: >-
+          box name "{{ cert_box_name }}" is not a valid DNS label.
+          Rename the inventory host to a DNS-safe name or set host_var box_name (example: rpi-box-03).
+      delegate_to: localhost
+
+    - name: Ensure mkcert is available on the controller
+      ansible.builtin.command:
+        argv: [mkcert, --version]
+      changed_when: false
+      delegate_to: localhost
+      when: inventory_hostname == (ansible_play_hosts_all | sort | first)
+
+    - name: Ensure certificate output directory exists
+      ansible.builtin.file:
+        path: "{{ cert_output_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      when: inventory_hostname == (ansible_play_hosts_all | sort | first)
+
+  tasks:
+    - name: Generate mkcert certificate for this box (idempotent)
+      ansible.builtin.command:
+        argv: "{{ ['mkcert', '-cert-file', cert_file, '-key-file', key_file] + cert_hosts }}"
+      args:
+        creates: "{{ cert_file }}"
+      delegate_to: localhost

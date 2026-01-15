@@ -40,10 +40,88 @@ traefik_log_level: "{{ lookup('env', 'TRAEFIK_LOG_LEVEL') }}"
 traefik_docker_api_version: "{{ lookup('env', 'TRAEFIK_DOCKER_API_VERSION') | default('', true) }}"
 traefik_docker_host: "{{ lookup('env', 'TRAEFIK_DOCKER_HOST') | default('unix:///var/run/docker.sock', true) }}"
 
+traefik_dashboard_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_DASHBOARD_ENABLED') | default('false', true)) | lower == 'true' }}
+
+traefik_dashboard_basic_auth_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_DASHBOARD_BASIC_AUTH_ENABLED') | default('false', true)) | lower == 'true' }}
+traefik_dashboard_basic_auth_users: >-
+  {{
+    lookup('env', 'TRAEFIK_DASHBOARD_BASIC_AUTH_USERS')
+    | default('', true)
+    | trim
+    | trim('"')
+  }}
+
+traefik_dashboard_ip_allowlist_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_DASHBOARD_IP_ALLOWLIST_ENABLED') | default('false', true)) | lower == 'true' }}
+traefik_dashboard_ip_allowlist: >-
+  {{
+    lookup('env', 'TRAEFIK_DASHBOARD_IP_ALLOWLIST')
+    | default('', true)
+    | trim
+    | trim('"')
+  }}
+
+traefik_admin_security_headers_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_SECURITY_HEADERS_ENABLED') | default('true', true)) | lower == 'true' }}
+traefik_admin_basic_auth_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_BASIC_AUTH_ENABLED') | default('false', true)) | lower == 'true' }}
+traefik_admin_basic_auth_users: >-
+  {{
+    lookup('env', 'TRAEFIK_ADMIN_BASIC_AUTH_USERS')
+    | default('', true)
+    | trim
+    | trim('"')
+  }}
+traefik_admin_ip_allowlist_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_ADMIN_IP_ALLOWLIST_ENABLED') | default('false', true)) | lower == 'true' }}
+traefik_admin_ip_allowlist: >-
+  {{
+    lookup('env', 'TRAEFIK_ADMIN_IP_ALLOWLIST')
+    | default('', true)
+    | trim
+    | trim('"')
+  }}
+
+traefik_dashboard_basic_auth_enabled_effective: >-
+  {{ traefik_dashboard_basic_auth_enabled or traefik_admin_basic_auth_enabled }}
+traefik_dashboard_basic_auth_users_effective: >-
+  {{
+    traefik_dashboard_basic_auth_users
+    if (traefik_dashboard_basic_auth_users | trim | length > 0)
+    else traefik_admin_basic_auth_users
+  }}
+traefik_dashboard_ip_allowlist_enabled_effective: >-
+  {{ traefik_dashboard_ip_allowlist_enabled or traefik_admin_ip_allowlist_enabled }}
+traefik_dashboard_ip_allowlist_effective: >-
+  {{
+    traefik_dashboard_ip_allowlist
+    if (traefik_dashboard_ip_allowlist | trim | length > 0)
+    else traefik_admin_ip_allowlist
+  }}
+
+traefik_workspace_folder: "{{ lookup('env', 'WORKSPACE_FOLDER') | default('/workspace', true) }}"
+traefik_local_cert_dir_raw: >-
+  {{ lookup('env', 'TRAEFIK_LOCAL_CERT_DIR') | default(traefik_workspace_folder ~ '/certs', true) }}
+traefik_local_cert_dir_expanded: >-
+  {{
+    traefik_local_cert_dir_raw
+    | replace('${WORKSPACE_FOLDER}', traefik_workspace_folder)
+    | replace('$WORKSPACE_FOLDER', traefik_workspace_folder)
+    | trim
+  }}
 traefik_local_cert_dir: >-
-  {{ lookup('env', 'TRAEFIK_LOCAL_CERT_DIR') | default('/workspace/certs', true) }}
-traefik_local_cert_file: "{{ traefik_local_cert_dir }}/{{ traefik_cert_file | basename }}"
-traefik_local_key_file: "{{ traefik_local_cert_dir }}/{{ traefik_key_file | basename }}"
+  {{
+    traefik_local_cert_dir_expanded
+    if (traefik_local_cert_dir_expanded is match('^/'))
+    else (traefik_workspace_folder ~ '/' ~ traefik_local_cert_dir_expanded)
+  }}
+traefik_site_domain: "{{ lookup('env', 'SITE_DOMAIN') | trim | lower }}"
+traefik_box_name: "{{ (box_name | default(inventory_hostname)) | trim | lower }}"
+
+traefik_local_cert_file: "{{ traefik_local_cert_dir }}/{{ traefik_box_name }}.{{ traefik_site_domain }}.crt"
+traefik_local_key_file: "{{ traefik_local_cert_dir }}/{{ traefik_box_name }}.{{ traefik_site_domain }}.key"
 traefik_local_ca_export_file: "{{ traefik_local_cert_dir }}/rootCA.pem"
 traefik_cert_hosts: []
 

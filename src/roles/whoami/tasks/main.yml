@@ -83,35 +83,11 @@
     seconds: "{{ whoami_verify_delay_seconds }}"
   when: whoami_verify_enabled
 
-- name: Fetch Traefik routers via API
-  ansible.builtin.uri:
-    url: >-
-      http://{{ whoami_verify_target }}:{{ lookup('env', 'TRAEFIK_WEB_PORT') | default('8080', true) }}/api/http/routers
-    method: GET
-    return_content: true
-    status_code: 200
-  register: whoami_traefik_routers
-  retries: "{{ whoami_verify_retries }}"
-  delay: "{{ whoami_verify_retry_delay }}"
-  until: whoami_traefik_routers.status == 200
-  when: whoami_verify_enabled and whoami_verify_use_traefik_api
-
-- name: Ensure Traefik has a whoami router
-  ansible.builtin.assert:
-    that:
-      - >-
-        (whoami_traefik_routers.content | from_json)
-        | selectattr('rule', 'search', whoami_host)
-        | list
-        | length
-        > 0
-    fail_msg: >-
-      Traefik API does not report a router for {{ whoami_host }}.
-      Available rules: {{
-        (whoami_traefik_routers.content | from_json)
-        | map(attribute='rule')
-        | list
-      }}
+- name: Fail when WHOAMI_VERIFY_USE_TRAEFIK_API=true (hardening)
+  ansible.builtin.fail:
+    msg: >-
+      WHOAMI_VERIFY_USE_TRAEFIK_API is no longer supported because Traefik hardening disables direct API/dashboard exposure by IP.
+      Verify using the HTTPS request check (default), or enable the dashboard on a protected FQDN and inspect routers in the dashboard.
   when: whoami_verify_enabled and whoami_verify_use_traefik_api
 
 - name: Verify whoami endpoint via Traefik

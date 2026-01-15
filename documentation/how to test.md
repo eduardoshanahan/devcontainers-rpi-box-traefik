@@ -25,18 +25,25 @@ Unless explicitly testing DNS enforcement, start with `NAME_RESOLUTION_MODE=host
   - `DNS_PREFLIGHT_CHECK=target` (default)
   - Optional: start with `CA_SHARE_ENABLED=false` for the first deploy, then enable it after Traefik + cert flow is confirmed.
 
+- Generate and install a client `/etc/hosts` snippet (so the FQDNs resolve without DNS):
+  - The apps playbook prints this snippet automatically in `NAME_RESOLUTION_MODE=hosts`, or you can generate it explicitly:
+
+  ```bash
+  ./scripts/generate-hosts-snippet.sh
+  ```
+
 - Deploy:
 
   ```bash
   cd src
-  ansible-playbook playbooks/pi-apps.yml -l rpi_box_03
+  ansible-playbook playbooks/pi-full.yml -l rpi_box_03
   ```
 
 - Validate idempotency (second run should report `changed=0` for all hosts):
 
   ```bash
   cd src
-  ansible-playbook playbooks/pi-apps.yml -l rpi_box_03
+  ansible-playbook playbooks/pi-full.yml -l rpi_box_03
   ```
 
 ### Scenario B: Coexistence with existing Pi-hole
@@ -53,7 +60,7 @@ Unless explicitly testing DNS enforcement, start with `NAME_RESOLUTION_MODE=host
 - Run `ansible-lint` on the apps playbook:
 
   ```bash
-  ./scripts/ansible-lint.sh src/playbooks/pi-apps.yml
+  ./scripts/ansible-lint.sh src/playbooks/pi-full.yml
   ```
 
 ## Apps Playbook
@@ -70,11 +77,11 @@ Unless explicitly testing DNS enforcement, start with `NAME_RESOLUTION_MODE=host
 - Run the smoke tests against all Raspberry Pi hosts:
 
   ```bash
-  ./scripts/ansible-smoke.sh src/playbooks/pi-apps.yml src/inventory/hosts.ini
+  ./scripts/ansible-smoke.sh src/playbooks/pi-full.yml src/inventory/hosts.ini
   ```
 
   To target a different inventory group, set `SMOKE_GROUP` (default: `raspberry_pi_boxes`):
 
   ```bash
-  SMOKE_GROUP=rpi_box_01 ./scripts/ansible-smoke.sh src/playbooks/pi-apps.yml src/inventory/hosts.ini
+  SMOKE_GROUP=rpi_box_01 ./scripts/ansible-smoke.sh src/playbooks/pi-full.yml src/inventory/hosts.ini
   ```

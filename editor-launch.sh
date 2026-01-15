@@ -38,9 +38,21 @@ load_project_env "$PROJECT_DIR"
 
 # Validate environment variables before launching anything
 info "Validating environment variables..."
-if ! sh "$PROJECT_DIR/scripts/validate-env.sh"; then
-  error "Environment validation failed. Please fix your .env values."
-  exit 1
+export DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-${PROJECT_NAME}-editor}"
+export CONTAINER_HOSTNAME_EDITOR="${CONTAINER_HOSTNAME_EDITOR:-${DOCKER_IMAGE_NAME}}"
+export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_EDITOR}"
+export DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-editor}"
+export INSTALL_CLAUDE="${INSTALL_CLAUDE:-false}"
+export KEEP_CONTAINER_DEVCONTAINER="${KEEP_CONTAINER_DEVCONTAINER:-false}"
+export KEEP_CONTAINER_CLAUDE="${KEEP_CONTAINER_CLAUDE:-false}"
+export KEEP_CONTAINER_EDITOR="${KEEP_CONTAINER_EDITOR:-false}"
+
+VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
+if [ -f "$VALIDATOR" ]; then
+  if ! sh "$VALIDATOR"; then
+    error "Environment validation failed. Please fix your .env values."
+    exit 1
+  fi
 fi
 
 # Export variables explicitly for devcontainer
@@ -51,9 +63,7 @@ export GIT_USER_NAME
 export GIT_USER_EMAIL
 export GIT_REMOTE_URL
 export EDITOR_CHOICE
-export DOCKER_IMAGE_NAME
 export DOCKER_IMAGE_TAG
-export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_EDITOR}"
 
 # Validate editor choice
 if [ "${EDITOR_CHOICE}" != "code" ] && [ "${EDITOR_CHOICE}" != "cursor" ] && [ "${EDITOR_CHOICE}" != "antigravity" ]; then

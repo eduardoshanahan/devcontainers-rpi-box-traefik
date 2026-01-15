@@ -43,9 +43,28 @@ If there are problems, start with the [documentation index](README.md).
 ## Deploy everything (full run)
 
   ```bash
-  cd src
-  ansible-playbook playbooks/pi-full.yml -l rpi_box_01
+  cd /workspace/src && ansible-playbook playbooks/pi-full.yml -l rpi_box_01
   ```
+
+## Name resolution (hosts mode)
+
+  If `NAME_RESOLUTION_MODE=hosts`, the play writes a hosts-compatible snippet to `hosts-snippet.txt` in the repo root:
+
+  ```bash
+  sudo tee -a /etc/hosts < hosts-snippet.txt
+  ```
+
+## Switch to DNS (Pi-hole / real DNS)
+
+  Once DNS records exist for `whoami.<box>.<SITE_DOMAIN>`, `ca.<box>.<SITE_DOMAIN>`, and `traefik.<box>.<SITE_DOMAIN>`:
+
+  ```bash
+  # In .env
+  NAME_RESOLUTION_MODE=dns
+  DNS_PREFLIGHT_CHECK=both
+  ```
+
+  Then remove any previously-added `/etc/hosts` overrides for those names (they will mask DNS).
 
 ## Dry-run and review changes (recommended on existing boxes)
 
@@ -60,11 +79,11 @@ If there are problems, start with the [documentation index](README.md).
 
 ## Deploy only a subset
 
-  Run a single role (tags are used throughout the roles):
+  Deploy only edge components (Traefik + CA share):
 
   ```bash
   cd src
-  ansible-playbook playbooks/pi-base.yml -l rpi_box_01 --tags docker_engine
+  ansible-playbook playbooks/pi-edge.yml -l rpi_box_01
   ```
 
 ## Local lint + idempotency smoke test
@@ -72,13 +91,13 @@ If there are problems, start with the [documentation index](README.md).
   This runs `ansible-lint`, `yamllint`, then executes the playbook twice and fails if the second pass reports changes:
 
   ```bash
-  ./scripts/ansible-smoke.sh src/playbooks/pi-base.yml src/inventory/hosts.ini
+  ./scripts/ansible-smoke.sh src/playbooks/pi-full.yml src/inventory/hosts.ini
   ```
 
   Limit to a single box:
 
   ```bash
-  ./scripts/ansible-smoke.sh src/playbooks/pi-base.yml src/inventory/hosts.ini rpi_box_03
+  ./scripts/ansible-smoke.sh src/playbooks/pi-full.yml src/inventory/hosts.ini rpi_box_03
   ```
 
 ## Lint only
@@ -86,5 +105,5 @@ If there are problems, start with the [documentation index](README.md).
   Run only `ansible-lint` (no playbook execution):
 
   ```bash
-  ./scripts/ansible-lint.sh src/playbooks/pi-base.yml
+  ./scripts/ansible-lint.sh src/playbooks/pi-full.yml
   ```

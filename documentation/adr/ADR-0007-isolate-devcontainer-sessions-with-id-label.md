@@ -18,7 +18,7 @@ Sharing a single container across different launchers can cause conflicts:
 Isolate non-editor workflows by labeling their devcontainer resources:
 
 - Each launcher uses a distinct `--id-label` (for example `devcontainer.session=${PROJECT_NAME}-cli`)
-- CLI and Claude launchers use unique container names when needed to avoid collisions with the editor container
+- Each launcher uses a dedicated image/container name (`${PROJECT_NAME}-editor`, `${PROJECT_NAME}-devcontainer`, `${PROJECT_NAME}-claude`) to avoid collisions across workflows
 - CLI/Claude containers stop automatically at session end unless the launcher-specific keep flag is set (`KEEP_CONTAINER_DEVCONTAINER=true` or `KEEP_CONTAINER_CLAUDE=true`)
 
 ## Consequences

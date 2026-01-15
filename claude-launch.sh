@@ -37,13 +37,6 @@ fi
 . "$ENV_LOADER"
 load_project_env "$PROJECT_DIR"
 
-# Validate environment
-info "Validating environment variables..."
-if ! sh "$PROJECT_DIR/scripts/validate-env.sh"; then
-  error "Environment validation failed. Please fix your .env values."
-  exit 1
-fi
-
 # Claude launcher policy: always install Claude CLI in the devcontainer image.
 export INSTALL_CLAUDE=true
 if [ -z "${CLAUDE_INSTALL_SHA256:-}" ]; then
@@ -83,7 +76,22 @@ export DOCKER_IMAGE_TAG
 LAUNCHER_TAG="claude"
 ID_LABEL="devcontainer.session=${PROJECT_NAME}-${LAUNCHER_TAG}"
 export DOCKER_IMAGE_NAME="${PROJECT_NAME}-claude"
+export CONTAINER_HOSTNAME_CLAUDE="${CONTAINER_HOSTNAME_CLAUDE:-${DOCKER_IMAGE_NAME}}"
 export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_CLAUDE}"
+export DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-claude}"
+export KEEP_CONTAINER_DEVCONTAINER="${KEEP_CONTAINER_DEVCONTAINER:-false}"
+export KEEP_CONTAINER_CLAUDE="${KEEP_CONTAINER_CLAUDE:-false}"
+export KEEP_CONTAINER_EDITOR="${KEEP_CONTAINER_EDITOR:-false}"
+
+# Validate environment (after launcher-derived defaults are set).
+info "Validating environment variables..."
+VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
+if [ -f "$VALIDATOR" ]; then
+  if ! sh "$VALIDATOR"; then
+    error "Environment validation failed. Please fix your .env values."
+    exit 1
+  fi
+fi
 
 info "Ensuring devcontainer is running..."
 if [ -n "${DOCKER_IMAGE_NAME:-}" ] && [ -n "${DOCKER_IMAGE_TAG:-}" ]; then
@@ -139,7 +147,7 @@ echo ""
 
 # Launch Claude Code interactively in the container.
 # Avoid relying on non-interactive .bashrc behavior; prefer a direct path fallback.
-devcontainer exec --workspace-folder "$PROJECT_DIR" --id-label "$ID_LABEL" bash -lc 'if command -v claude >/dev/null 2>&1; then exec claude; elif [ -x "$HOME/.local/bin/claude" ]; then exec "$HOME/.local/bin/claude"; else echo "Claude Code not found in PATH or ~/.local/bin. Rebuild the container or re-run post-create to install it."; exit 127; fi'
+devcontainer exec --workspace-folder "$PROJECT_DIR" --id-label "$ID_LABEL" bash -lc 'if command -v claude >/dev/null 2>&1; then exec claude; else echo "Claude CLI not found. Rebuild the devcontainer with INSTALL_CLAUDE=true (this launcher should do it automatically)."; exit 127; fi'
 
 echo ""
 info "Claude Code session ended."

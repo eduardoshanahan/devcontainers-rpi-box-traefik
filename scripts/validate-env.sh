@@ -24,8 +24,44 @@ fi
 . "$ENV_LOADER"
 load_project_env "$REPO_ROOT"
 
+context="${1:-editor}"
+case "$context" in
+  editor|devcontainer|cli|claude) ;;
+  *)
+    error "Usage: ./scripts/validate-env.sh [editor|devcontainer|claude]"
+    exit 2
+    ;;
+esac
+
+export INSTALL_CLAUDE="${INSTALL_CLAUDE:-false}"
+export KEEP_CONTAINER_DEVCONTAINER="${KEEP_CONTAINER_DEVCONTAINER:-false}"
+export KEEP_CONTAINER_CLAUDE="${KEEP_CONTAINER_CLAUDE:-false}"
+export KEEP_CONTAINER_EDITOR="${KEEP_CONTAINER_EDITOR:-false}"
+
+export CONTAINER_HOSTNAME_EDITOR="${CONTAINER_HOSTNAME_EDITOR:-${PROJECT_NAME}-editor}"
+export CONTAINER_HOSTNAME_DEVCONTAINER="${CONTAINER_HOSTNAME_DEVCONTAINER:-${PROJECT_NAME}-devcontainer}"
+export CONTAINER_HOSTNAME_CLAUDE="${CONTAINER_HOSTNAME_CLAUDE:-${PROJECT_NAME}-claude}"
+
+case "$context" in
+  editor)
+    export DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-editor}"
+    export DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-${PROJECT_NAME}-editor}"
+    export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME:-${CONTAINER_HOSTNAME_EDITOR}}"
+    ;;
+  devcontainer|cli)
+    export DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-devcontainer}"
+    export DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-${PROJECT_NAME}-devcontainer}"
+    export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME:-${CONTAINER_HOSTNAME_DEVCONTAINER}}"
+    ;;
+  claude)
+    export DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-claude}"
+    export DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-${PROJECT_NAME}-claude}"
+    export CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME:-${CONTAINER_HOSTNAME_CLAUDE}}"
+    ;;
+esac
+
 if ! sh "$VALIDATOR"; then
-  error "Environment validation failed. This project expects you to start the devcontainer via ./devcontainer-launch.sh, ./editor-launch.sh, or ./workspace.sh."
+  error "Environment validation failed. Fix your .env values, or validate a specific launcher context with: ./scripts/validate-env.sh [editor|devcontainer|claude]"
   exit 1
 fi
 

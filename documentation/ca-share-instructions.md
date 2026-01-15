@@ -11,24 +11,22 @@ install it and trust HTTPS for Traefik-hosted apps.
 CA_SHARE_ENABLED=true
 ```
 
-2. In the host vars for the target (e.g. `src/inventory/host_vars/rpi_box_02.yml`), set:
+2. Ensure name resolution exists for the CA host:
+   - In `NAME_RESOLUTION_MODE=hosts`: use the generated `/etc/hosts` snippet (dns_preflight prints it).
+   - In `NAME_RESOLUTION_MODE=dns`: ensure DNS points `ca.<box>.<SITE_DOMAIN>` to the Traefik host IP.
 
-```
-ca_share_host: "ca.rpi-box-02.hhlab.home.arpa"
-```
-
-3. Ensure DNS points `ca.rpi-box-02.hhlab.home.arpa` to the Traefik host IP.
+3. Optional: override `ca_share_host` in host_vars for edge cases. By default it is derived as `ca.<box_name>.<SITE_DOMAIN>`.
 
 4. Run the playbook:
 
 ```
-ansible-playbook src/playbooks/pi-apps.yml -l rpi_box_02
+ansible-playbook src/playbooks/pi-edge.yml -l rpi_box_02
 ```
 
 The CA file will be available at:
 
 ```
-https://ca.rpi-box-02.hhlab.home.arpa/rootCA-ca.rpi-box-02.hhlab.home.arpa.pem
+https://ca.rpi-box-02.hhlab.home.arpa/rootCA.pem
 ```
 
 Note: The CA file is exported by the Traefik role into
@@ -45,18 +43,19 @@ If you want to automate this step, run:
 sudo ./scripts/install-ubuntu-ca.sh
 ```
 
-The script reads CA hostnames from `scripts/ca-hosts.txt` by default (one per line).
+The script reads CA hostnames from `scripts/ca-hosts.txt` by default (one per line) and downloads
+`https://<ca-host>/rootCA.pem` from each host, so each box must have CA share deployed.
 
 1. Download the CA file:
 
 ```
-curl -k -O https://ca.rpi-box-02.hhlab.home.arpa/rootCA-ca.rpi-box-02.hhlab.home.arpa.pem
+curl -k -O https://ca.rpi-box-02.hhlab.home.arpa/rootCA.pem
 ```
 
 2. Install into the system trust store:
 
 ```
-sudo cp rootCA-ca.rpi-box-02.hhlab.home.arpa.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt
+sudo cp rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt
 sudo update-ca-certificates
 ```
 
@@ -72,7 +71,7 @@ Note: Firefox may need manual import or “Use system certificates” enabled.
 2. Open an elevated PowerShell and run:
 
 ```
-certutil -addstore -f "Root" rootCA-ca.rpi-box-02.hhlab.home.arpa.pem
+certutil -addstore -f "Root" rootCA.pem
 ```
 
 3. Close and reopen the browser, then test:

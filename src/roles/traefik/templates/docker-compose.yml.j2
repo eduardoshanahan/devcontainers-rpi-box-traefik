@@ -9,7 +9,7 @@ services:
     ports:
       - "{{ traefik_http_port }}:{{ traefik_http_port }}"
       - "{{ traefik_https_port }}:{{ traefik_https_port }}"
-      - "{{ traefik_web_port }}:{{ traefik_web_port }}"
+      - "127.0.0.1:{{ traefik_web_port }}:{{ traefik_web_port }}"
 {% if traefik_docker_api_version | length > 0 %}
     environment:
       DOCKER_HOST: "{{ traefik_docker_host }}"

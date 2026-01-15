@@ -56,7 +56,20 @@ fi
 load_project_env "$PROJECT_DIR"
 
 info "Validating environment variables..."
-if ! sh "$PROJECT_DIR/scripts/validate-env.sh" >/dev/null; then
+DOCKER_IMAGE_NAME="${DOCKER_IMAGE_NAME:-${PROJECT_NAME}-editor}"
+CONTAINER_HOSTNAME_EDITOR="${CONTAINER_HOSTNAME_EDITOR:-${DOCKER_IMAGE_NAME}}"
+CONTAINER_HOSTNAME_DEVCONTAINER="${CONTAINER_HOSTNAME_DEVCONTAINER:-${PROJECT_NAME}-devcontainer}"
+CONTAINER_HOSTNAME_CLAUDE="${CONTAINER_HOSTNAME_CLAUDE:-${PROJECT_NAME}-claude}"
+CONTAINER_HOSTNAME="${CONTAINER_HOSTNAME_EDITOR}"
+INSTALL_CLAUDE="${INSTALL_CLAUDE:-false}"
+KEEP_CONTAINER_DEVCONTAINER="${KEEP_CONTAINER_DEVCONTAINER:-false}"
+KEEP_CONTAINER_CLAUDE="${KEEP_CONTAINER_CLAUDE:-false}"
+KEEP_CONTAINER_EDITOR="${KEEP_CONTAINER_EDITOR:-false}"
+DEVCONTAINER_CONTEXT="${DEVCONTAINER_CONTEXT:-editor}"
+export DOCKER_IMAGE_NAME CONTAINER_HOSTNAME CONTAINER_HOSTNAME_EDITOR CONTAINER_HOSTNAME_DEVCONTAINER CONTAINER_HOSTNAME_CLAUDE INSTALL_CLAUDE KEEP_CONTAINER_DEVCONTAINER KEEP_CONTAINER_CLAUDE KEEP_CONTAINER_EDITOR DEVCONTAINER_CONTEXT
+
+VALIDATOR="$PROJECT_DIR/.devcontainer/scripts/validate-env.sh"
+if [ -f "$VALIDATOR" ] && ! sh "$VALIDATOR" >/dev/null; then
   error "Environment validation failed. Please fix your .env values."
   exit 1
 fi
@@ -66,8 +79,6 @@ if [ -z "$SESSION" ]; then
   error "WORKSPACE_TMUX_SESSION is not set and PROJECT_NAME is empty"
   exit 1
 fi
-
-REMOTE_HOST="${WORKSPACE_REMOTE_HOST:-}"
 
 require_cmd tmux
 
@@ -115,12 +126,6 @@ ensure_workspace_layout() {
   ensure_window "devcontainer" "$PROJECT_DIR" "./devcontainer-launch.sh"
   ensure_window "editor" "$PROJECT_DIR" "./editor-launch.sh"
   ensure_window "claude" "$PROJECT_DIR" "./claude-launch.sh"
-
-  if [ -n "$REMOTE_HOST" ]; then
-    ensure_window "ssh-box" "" "ssh \"$REMOTE_HOST\" -t 'tmux attach -t infra || tmux new -s infra'"
-  else
-    ensure_window "ssh-box" "" "printf '%s\\n' \"Set WORKSPACE_REMOTE_HOST in .env to enable ssh-box.\"; exec sh"
-  fi
 
   tmux select-window -t "$SESSION:shell" >/dev/null 2>&1 || true
 }

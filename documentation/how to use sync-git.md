@@ -14,6 +14,8 @@ Optional:
 - `GIT_SYNC_PUSH_REMOTES` list (space or comma separated).
 - `GIT_REMOTE_URL` for the primary remote.
 - `GIT_REMOTE_URL_<REMOTE>` for additional remotes.
+- `BRANCH` to force a specific branch name (otherwise uses current branch).
+- `FORCE_PULL=true` to allow overwriting local changes (primary remote only).
 
 Example:
 
@@ -30,6 +32,12 @@ Standard sync (requires clean working tree):
 
 ```sh
 ./scripts/sync-git.sh
+```
+
+Sync a specific branch:
+
+```sh
+BRANCH=main ./scripts/sync-git.sh
 ```
 
 Force sync (overwrites local changes):

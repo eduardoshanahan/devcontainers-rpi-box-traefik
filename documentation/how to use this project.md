@@ -1,39 +1,54 @@
-# How to Use This Project
+# How to use this project
+
+## Overview
 
 This repo deploys Traefik to Raspberry Pi hosts that already have the base OS/infra configured. Keep the base provisioning repo for OS setup and use this repo for app-specific roles and playbooks.
 
-## 0. Configure the Devcontainer Environment
+## Quick start
 
-1. Copy the root `.env.example` to `.env`:
+1. Copy `.env.example` to `.env`:
 
    ```bash
    cp .env.example .env
    ```
 
-2. Edit `.env` and set your host username/UID/GID plus the Ansible-related paths:
+2. Edit `.env` and set the required values (host user/UID/GID, locale, Git identity, editor choice, resource limits, Ansible pins, and `ANSIBLE_USER` / `ANSIBLE_SSH_PRIVATE_KEY_FILE`).
 
-   - `ANSIBLE_CONFIG=/workspace/src/ansible.cfg`
-   - `ANSIBLE_INVENTORY=/workspace/src/inventory/hosts.ini`
-   - `ANSIBLE_COLLECTIONS_PATH=/workspace/src/collections:/home/<your-username>/.ansible/collections`
-   - `ANSIBLE_ROLES_PATH=/workspace/src/roles`
-   - `ANSIBLE_USER`, `ANSIBLE_SSH_PRIVATE_KEY_FILE`
+3. Run `./editor-launch.sh` and in your editor choose "Reopen in Container".
 
-   The devcontainer loads these variables from `.env`, so keeping them here makes
-   the configuration obvious and versioned via `.env.example`.
+## Launchers
 
-3. Install required Ansible collections:
+- `./editor-launch.sh` for VS Code/Cursor/Antigravity.
+- `./devcontainer-launch.sh` for a CLI shell.
+- `./claude-launch.sh` to start Claude Code inside the container.
+- `./workspace.sh` to open a tmux workspace on the host (optional).
 
-   ```bash
-   cd src
-   ansible-galaxy collection install -r requirements.yml
-   ```
+## SSH agent forwarding
 
-## 1. Prerequisites
+The devcontainer bind-mounts `SSH_AUTH_SOCK`, so the host must have a running
+SSH agent before the container starts. Keys stay on the host; only the agent
+socket is forwarded.
 
-- Launch options:
-  - `./editor-launch.sh` for VS Code/Cursor/Antigravity.
-  - `./devcontainer-launch.sh` for a CLI shell.
-  - `./claude-launch.sh` to start Claude Code inside the container.
+## Common scripts
+
+- Validate config: `./scripts/validate-env.sh [editor|devcontainer|claude]`
+- Clean old devcontainer images: `./scripts/clean-devcontainer-images.sh`
+- Sync git remotes (required for this layer): `./scripts/sync-git.sh`
+
+## Project-specific workflow
+
+### Install Ansible collections
+
+From inside the devcontainer:
+
+```bash
+cd src
+ansible-galaxy collection install -r requirements.yml
+```
+
+### Prerequisites
+
+- Start the environment via one of the repo launchers (see "Launchers" above).
 - The Pi is already provisioned with the base OS/infra playbook (Docker Engine + Compose v2 installed, daemon running).
 - `/srv/apps` exists on the target (created by the base repo).
 - SSH access is working from your devcontainer (SSH agent forwarding is used; keys do not need to be copied into the repo).
@@ -65,17 +80,19 @@ devcontainer) using mkcert and copy it to the Pi during deployment.
 2. Ensure `TRAEFIK_LOCAL_CERT_DIR` in `.env` points to the repo-local directory
    (default: `/workspace/certs`).
 
-3. Set `traefik_cert_hosts` in `src/inventory/group_vars/all.yml` to the SANs you want on
-   the wildcard certificate, for example:
-
-   ```yaml
-   traefik_cert_hosts:
-     - "*.rpi-box-01.hhlab.home.arpa"
-     - "*.rpi-box-02.hhlab.home.arpa"
-   ```
+3. Certificates are generated per box (recommended):
+   - Default SANs: `*.${box_name}.${SITE_DOMAIN}` and `${box_name}.${SITE_DOMAIN}`.
+   - You can override `traefik_cert_hosts` in `host_vars` for edge cases, but you no longer need a shared list in `group_vars`.
 
 4. Run the playbook. It will generate the cert/key locally (if missing) and copy
    them to `TRAEFIK_CERT_FILE` and `TRAEFIK_KEY_FILE` on the target.
+
+   Optional: generate all box certificates on the controller in advance:
+
+   ```bash
+   cd src
+   ansible-playbook playbooks/controller-certs.yml
+   ```
 
 5. Trust the mkcert CA on client devices so browsers accept the HTTPS certs.
    For Ubuntu, `sudo ./scripts/install-ubuntu-ca.sh` uses `scripts/ca-hosts.txt`
@@ -92,7 +109,7 @@ You can expose the mkcert root CA over HTTPS so clients can download and install
 it easily. See `ca-share-instructions.md` for enabling the endpoint and Ubuntu/
 Windows install steps.
 
-## 2. Configure Inventory Host Vars
+### Configure inventory host vars
 
 1. Copy the example host vars file and keep the real one out of git:
 
@@ -101,19 +118,36 @@ Windows install steps.
    ```
 
 2. Edit `src/inventory/host_vars/rpi_box_01.yml` with the correct `ansible_host`, `ansible_port`, and hostnames (`whoami_host`, `ca_share_host`, optional `traefik_dashboard_host`).
+   By default, service hostnames are derived as `service.<box_name>.<SITE_DOMAIN>` (for example `whoami.rpi-box-01.hhlab.home.arpa`).
+   If your inventory hostname contains underscores (for example `rpi_box_01`), set `box_name: "rpi-box-01"` in host_vars to produce DNS-safe FQDNs.
 
-## 3. Verify Ansible Connectivity
+3. If bootstrapping without DNS (`NAME_RESOLUTION_MODE=hosts`), generate a client `/etc/hosts` snippet from inventory:
+   - This snippet is printed automatically during playbook runs (dns_preflight).
+   - `HOSTS_SNIPPET_OUTPUT_FILE` writes a hosts-compatible snippet file (default: `hosts-snippet.txt` in the repo root).
+   - Apply it on your client machine with `sudo tee -a /etc/hosts < hosts-snippet.txt`.
+   - Or generate it explicitly:
+
+   ```bash
+   ./scripts/generate-hosts-snippet.sh
+   ```
+
+4. When you switch to real DNS (`NAME_RESOLUTION_MODE=dns`), remove any `/etc/hosts` entries you previously added for the `*.hhlab.home.arpa` service names (they override DNS).
+
+### Verify Ansible connectivity
 
 ```bash
 cd src
 ansible rpi_box_01 -i inventory/hosts.ini -m ping
 ```
 
-## 4. Deploy Apps
+### Deploy apps
 
 ```bash
 cd src
-ansible-playbook playbooks/pi-apps.yml -l rpi_box_01
+ansible-playbook playbooks/pi-full.yml -l rpi_box_01
 ```
 
-Traefik should be available at `http://<pi-ip>:<TRAEFIK_WEB_PORT>/dashboard/`.
+Traefik dashboard is available only when explicitly enabled and protected:
+
+- Set `TRAEFIK_DASHBOARD_ENABLED=true` and configure access control (basic auth and/or IP allowlist) in `.env`.
+- Access it via the FQDN: `https://traefik.<box_name>.<SITE_DOMAIN>/dashboard/` (not by IP).

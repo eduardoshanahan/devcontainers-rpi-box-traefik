@@ -20,6 +20,9 @@ Goal: keep URLs stable while clients resolve names via `/etc/hosts`.
 - Use `SITE_DOMAIN` consistently (example: `hhlab.home.arpa`).
 - Generate a deterministic `/etc/hosts` snippet for clients and install it on
   developer/admin machines.
+- Generate the snippet from inventory:
+  - Automatically printed during playbook runs in `NAME_RESOLUTION_MODE=hosts`.
+  - Or run `./scripts/generate-hosts-snippet.sh` (inside the devcontainer is recommended).
 - Expose admin UIs only through Traefik using `Host(service.box.domain)`.
 
 ## Phase B: Switch to DNS (DNS server becomes available)

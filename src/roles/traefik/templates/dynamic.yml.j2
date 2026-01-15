@@ -2,9 +2,56 @@ tls:
   certificates:
     - certFile: "/etc/traefik/certs/{{ traefik_cert_file | basename }}"
       keyFile: "/etc/traefik/certs/{{ traefik_key_file | basename }}"
-{% if traefik_dashboard_host is defined and traefik_dashboard_host | length > 0 %}
+{% set dashboard_router_enabled = traefik_dashboard_enabled and traefik_dashboard_host is defined and traefik_dashboard_host | length > 0 %}
+{% if traefik_admin_security_headers_enabled or traefik_admin_basic_auth_enabled or traefik_admin_ip_allowlist_enabled or dashboard_router_enabled %}
 
 http:
+  middlewares:
+{% if traefik_admin_security_headers_enabled %}
+    admin-security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "no-referrer"
+        forceSTSHeader: true
+        stsSeconds: 15552000
+        stsIncludeSubdomains: true
+{% endif %}
+{% if traefik_admin_basic_auth_enabled %}
+    admin-auth:
+      basicAuth:
+        users:
+{% for user in (traefik_admin_basic_auth_users.split(',') | map('trim') | list) if (traefik_admin_basic_auth_users | trim | length > 0) %}
+          - "{{ user }}"
+{% endfor %}
+{% endif %}
+{% if traefik_admin_ip_allowlist_enabled %}
+    admin-ipallow:
+      ipAllowList:
+        sourceRange:
+{% for cidr in (traefik_admin_ip_allowlist.split(',') | map('trim') | list) if (traefik_admin_ip_allowlist | trim | length > 0) %}
+          - "{{ cidr }}"
+{% endfor %}
+{% endif %}
+{% if dashboard_router_enabled and traefik_dashboard_basic_auth_enabled %}
+    traefik-dashboard-auth:
+      basicAuth:
+        users:
+{% for user in (traefik_dashboard_basic_auth_users.split(',') | map('trim') | list) if (traefik_dashboard_basic_auth_users | trim | length > 0) %}
+          - "{{ user }}"
+{% endfor %}
+{% endif %}
+{% if dashboard_router_enabled and traefik_dashboard_ip_allowlist_enabled %}
+    traefik-dashboard-ipallow:
+      ipAllowList:
+        sourceRange:
+{% for cidr in (traefik_dashboard_ip_allowlist.split(',') | map('trim') | list) if (traefik_dashboard_ip_allowlist | trim | length > 0) %}
+          - "{{ cidr }}"
+{% endfor %}
+{% endif %}
+
+{% if dashboard_router_enabled %}
   routers:
     traefik-dashboard:
       rule: "Host(`{{ traefik_dashboard_host }}`)"
@@ -12,4 +59,24 @@ http:
       entryPoints:
         - websecure
       tls: {}
+      middlewares:
+{% if traefik_admin_security_headers_enabled %}
+        - admin-security-headers
+{% endif %}
+{% if traefik_dashboard_basic_auth_enabled_effective %}
+{% if traefik_dashboard_basic_auth_enabled %}
+        - traefik-dashboard-auth
+{% else %}
+        - admin-auth
+{% endif %}
+{% endif %}
+{% if traefik_dashboard_ip_allowlist_enabled_effective %}
+{% if traefik_dashboard_ip_allowlist_enabled %}
+        - traefik-dashboard-ipallow
+{% else %}
+        - admin-ipallow
+{% endif %}
+{% endif %}
+{% endif %}
+
 {% endif %}

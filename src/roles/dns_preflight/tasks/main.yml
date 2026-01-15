@@ -30,6 +30,34 @@
   delegate_to: localhost
   become: false
 
+- name: Derive box name for FQDN scheme
+  ansible.builtin.set_fact:
+    dns_preflight_box_name: >-
+      {{
+        (box_name | default(inventory_hostname))
+        | trim
+        | lower
+      }}
+
+- name: Validate box name for FQDN scheme
+  ansible.builtin.assert:
+    that:
+      - dns_preflight_box_name | length > 0
+      - dns_preflight_box_name is match('^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')
+    fail_msg: >-
+      Box name "{{ dns_preflight_box_name }}" is not a valid DNS label. Use only letters, numbers, and hyphens.
+      Either rename the inventory host to a DNS-safe name or set host_var "box_name" (example: rpi-box-01).
+
+- name: Validate SITE_DOMAIN for FQDN scheme
+  ansible.builtin.assert:
+    that:
+      - dns_preflight_site_domain | trim | lower is match(dns_preflight_site_domain_regex)
+    fail_msg: >-
+      SITE_DOMAIN "{{ dns_preflight_site_domain }}" is not a valid DNS suffix (example: hhlab.home.arpa).
+  vars:
+    dns_preflight_site_domain_regex: >-
+      ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$
+
 - name: Build DNS preflight FQDN list
   ansible.builtin.set_fact:
     dns_preflight_known_fqdns: >-
@@ -37,13 +65,147 @@
         (
           []
           + ([whoami_host] if (whoami_host is defined and whoami_host | trim | length > 0) else [])
-          + ([ca_share_host] if (dns_preflight_ca_share_enabled and ca_share_host is defined and ca_share_host | trim | length > 0) else [])
-          + ([traefik_dashboard_host] if (traefik_dashboard_host is defined and traefik_dashboard_host | trim | length > 0) else [])
+          + ([ca_share_host]
+            if (dns_preflight_ca_share_enabled and ca_share_host is defined and ca_share_host | trim | length > 0)
+            else [])
+          + ([traefik_dashboard_host]
+            if (dns_preflight_traefik_dashboard_enabled and traefik_dashboard_host is defined and traefik_dashboard_host | trim | length > 0)
+            else [])
         )
         | map('trim')
         | unique
         | list
       }}
+
+- name: Generate client /etc/hosts snippet (NAME_RESOLUTION_MODE=hosts)
+  when: dns_preflight_name_resolution_mode == "hosts"
+  block:
+    - name: Initialize hosts snippet lines
+      ansible.builtin.set_fact:
+        dns_preflight_hosts_snippet_lines: []
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Append hosts snippet lines for play hosts
+      ansible.builtin.set_fact:
+        dns_preflight_hosts_snippet_lines: "{{ dns_preflight_hosts_snippet_lines + [dns_preflight_hosts_snippet_line] }}"
+      vars:
+        snippet_host: "{{ item }}"
+        snippet_hostvars: "{{ hostvars[item] }}"
+        snippet_box_name: >-
+          {{
+            (snippet_hostvars.box_name | default(item))
+            | trim
+            | lower
+          }}
+        snippet_ip: "{{ (snippet_hostvars.ansible_host | default('')) | trim }}"
+        snippet_whoami_host: >-
+          {{
+            snippet_hostvars.whoami_host
+            | default('whoami.' ~ snippet_box_name ~ '.' ~ (dns_preflight_site_domain | trim | lower))
+            | trim
+          }}
+        snippet_ca_share_host: >-
+          {{
+            snippet_hostvars.ca_share_host
+            | default('ca.' ~ snippet_box_name ~ '.' ~ (dns_preflight_site_domain | trim | lower))
+            | trim
+          }}
+        snippet_traefik_dashboard_host: >-
+          {{
+            snippet_hostvars.traefik_dashboard_host
+            | default('traefik.' ~ snippet_box_name ~ '.' ~ (dns_preflight_site_domain | trim | lower))
+            | trim
+          }}
+        snippet_names: >-
+          {{
+            (
+              []
+              + ([snippet_whoami_host] if (snippet_whoami_host | length > 0) else [])
+              + ([snippet_traefik_dashboard_host] if dns_preflight_traefik_dashboard_enabled else [])
+              + ([snippet_ca_share_host] if dns_preflight_ca_share_enabled else [])
+            )
+            | unique
+            | list
+          }}
+        dns_preflight_hosts_snippet_line: "{{ snippet_ip }} {{ snippet_names | join(' ') }}"
+      loop: "{{ ansible_play_hosts_all | sort }}"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Fail when a play host is missing ansible_host in hosts mode
+      ansible.builtin.assert:
+        that:
+          - >-
+            (dns_preflight_hosts_snippet_lines
+            | select('match', '^[^ ]+ .+')
+            | list
+            | length)
+            == (ansible_play_hosts_all | length)
+        fail_msg: >-
+          NAME_RESOLUTION_MODE=hosts requires ansible_host for each targeted host so a client /etc/hosts snippet can be generated.
+          Ensure host_vars set ansible_host for every host in this run.
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Print client /etc/hosts snippet
+      ansible.builtin.debug:
+        msg: |-
+          ------------------------------------------------------------------------------
+          /etc/hosts snippet (generated by dns_preflight)
+          SITE_DOMAIN: {{ dns_preflight_site_domain | trim | lower }}
+          Includes: whoami={{ true }}, traefik_dashboard={{ dns_preflight_traefik_dashboard_enabled }}, ca_share={{ dns_preflight_ca_share_enabled }}
+          ------------------------------------------------------------------------------
+          {{ dns_preflight_hosts_snippet_lines | join('\n') }}
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Require CA share host to be present in hosts snippet when enabled
+      ansible.builtin.assert:
+        that:
+          - >-
+            (dns_preflight_hosts_snippet_lines
+            | select('search', '(?:^|\\s)' ~ (ca_share_host | trim | regex_escape) ~ '(?:$|\\s)')
+            | list
+            | length)
+            > 0
+        fail_msg: >-
+          CA_SHARE_ENABLED=true requires ca_share_host ({{ ca_share_host }}) to be present in the generated /etc/hosts snippet.
+          Check box_name/inventory_hostname, SITE_DOMAIN, and host_vars overrides.
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: dns_preflight_ca_share_enabled
+
+    - name: Ensure hosts snippet output directory exists (optional)
+      ansible.builtin.file:
+        path: "{{ dns_preflight_hosts_snippet_output_file | dirname }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: dns_preflight_hosts_snippet_output_file | trim | length > 0
+
+    - name: Write /etc/hosts snippet to output file (optional)
+      ansible.builtin.copy:
+        content: |-
+          # ------------------------------------------------------------------------------
+          # /etc/hosts snippet (generated by dns_preflight)
+          # SITE_DOMAIN: {{ dns_preflight_site_domain | trim | lower }}
+          # Includes: whoami={{ true }}, traefik_dashboard={{ dns_preflight_traefik_dashboard_enabled }}, ca_share={{ dns_preflight_ca_share_enabled }}
+          # ------------------------------------------------------------------------------
+          {{ dns_preflight_hosts_snippet_lines | join('\n') }}
+        dest: "{{ dns_preflight_hosts_snippet_output_file }}"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when: dns_preflight_hosts_snippet_output_file | trim | length > 0
 
 - name: Fail when CA_SHARE_ENABLED=true but ca_share_host is missing
   ansible.builtin.assert:
@@ -51,7 +213,7 @@
       - ca_share_host is defined
       - ca_share_host | trim | length > 0
     fail_msg: >-
-      CA_SHARE_ENABLED=true requires ca_share_host to be set (e.g. in host_vars).
+      CA_SHARE_ENABLED=true requires ca_share_host to be set (derived by dns_preflight or overridden in host_vars).
   when: dns_preflight_ca_share_enabled
 
 - name: Skip DNS resolution checks when NAME_RESOLUTION_MODE=hosts

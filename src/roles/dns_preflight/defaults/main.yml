@@ -1,6 +1,8 @@
 ---
 dns_preflight_site_domain: "{{ lookup('env', 'SITE_DOMAIN') }}"
 
+dns_preflight_workspace_folder: "{{ lookup('env', 'WORKSPACE_FOLDER') | default('/workspace', true) }}"
+
 dns_preflight_name_resolution_mode: >-
   {{ lookup('env', 'NAME_RESOLUTION_MODE') | default('hosts', true) | lower }}
 
@@ -10,5 +12,29 @@ dns_preflight_check_scope: >-
 dns_preflight_ca_share_enabled: >-
   {{ (lookup('env', 'CA_SHARE_ENABLED') | default('false', true)) | lower == 'true' }}
 
-dns_preflight_known_fqdns: []
+dns_preflight_traefik_dashboard_enabled: >-
+  {{ (lookup('env', 'TRAEFIK_DASHBOARD_ENABLED') | default('false', true)) | lower == 'true' }}
 
+dns_preflight_hosts_snippet_output_file_raw: >-
+  {{ lookup('env', 'HOSTS_SNIPPET_OUTPUT_FILE') | default('', true) }}
+
+dns_preflight_hosts_snippet_output_file_expanded: >-
+  {{
+    dns_preflight_hosts_snippet_output_file_raw
+    | replace('${WORKSPACE_FOLDER}', dns_preflight_workspace_folder)
+    | replace('$WORKSPACE_FOLDER', dns_preflight_workspace_folder)
+    | trim
+  }}
+
+dns_preflight_hosts_snippet_output_file: >-
+  {{
+    ''
+    if (dns_preflight_hosts_snippet_output_file_expanded | length == 0)
+    else (
+      dns_preflight_hosts_snippet_output_file_expanded
+      if (dns_preflight_hosts_snippet_output_file_expanded is match('^/'))
+      else (dns_preflight_workspace_folder ~ '/' ~ dns_preflight_hosts_snippet_output_file_expanded)
+    )
+  }}
+
+dns_preflight_known_fqdns: []

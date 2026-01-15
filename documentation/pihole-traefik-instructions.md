@@ -62,3 +62,9 @@ networks:
   Traefik is enabled.
 - The Pi-hole container should not bind ports 80/443 on the host while Traefik
   is running.
+
+## UniFi DNS Notes
+
+If you use a UniFi gateway (UCG Max) and Pi-hole for local DNS, ensure clients are
+actually using the Pi-holes as resolvers (not the gateway IP), and that both Pi-holes
+have the same local records. See `documentation/unifi-ucg-pihole-dns-notes.md`.

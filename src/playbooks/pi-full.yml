@@ -1,4 +1,54 @@
 ---
+- name: Deploy Raspberry Pi edge components (Traefik, CA share)
+  hosts: raspberry_pi_boxes
+  become: true
+  gather_facts: true
+  vars:
+    traefik_enabled_raw: "{{ lookup('env', 'TRAEFIK_ENABLED') }}"
+    traefik_enabled: "{{ (lookup('env', 'TRAEFIK_ENABLED') | lower) == 'true' }}"
+    site_domain: "{{ lookup('env', 'SITE_DOMAIN') | trim | lower }}"
+    box_name_resolved: "{{ (box_name | default(inventory_hostname)) | trim | lower }}"
+  pre_tasks:
+    - name: Validate TRAEFIK_ENABLED env var
+      ansible.builtin.assert:
+        that:
+          - traefik_enabled_raw | length > 0
+          - traefik_enabled_raw | lower in ['true', 'false']
+        fail_msg: >-
+          TRAEFIK_ENABLED must be set to "true" or "false" in the controller environment (.env).
+      delegate_to: localhost
+      become: false
+      when: inventory_hostname == (ansible_play_hosts_all | sort | first)
+
+    - name: Derive Traefik certificate SANs for this box when missing
+      ansible.builtin.set_fact:
+        traefik_cert_hosts:
+          - "*.{{ box_name_resolved }}.{{ site_domain }}"
+          - "{{ box_name_resolved }}.{{ site_domain }}"
+      when:
+        - traefik_enabled
+        - traefik_cert_hosts is not defined or traefik_cert_hosts | length == 0
+
+    - name: Derive CA share host from scheme when missing
+      ansible.builtin.set_fact:
+        ca_share_host: "{{ ca_share_host | default('ca.' ~ box_name_resolved ~ '.' ~ site_domain) }}"
+      when: traefik_enabled
+
+    - name: Derive Traefik dashboard host from scheme when enabled and missing
+      ansible.builtin.set_fact:
+        traefik_dashboard_host: "{{ traefik_dashboard_host | default('traefik.' ~ box_name_resolved ~ '.' ~ site_domain) }}"
+      when:
+        - traefik_enabled
+        - (lookup('env', 'TRAEFIK_DASHBOARD_ENABLED') | default('false', true) | lower) == 'true'
+  roles:
+    - role: dns_preflight
+      when: traefik_enabled
+    - docker_preflight
+    - role: traefik
+      when: traefik_enabled
+    - role: ca_share
+      when: traefik_enabled
+
 - name: Deploy Raspberry Pi applications
   hosts: raspberry_pi_boxes
   become: true

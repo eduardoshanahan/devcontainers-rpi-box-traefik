@@ -33,6 +33,11 @@ services:
       - "traefik.http.routers.myapp.rule=Host(`myapp.rpi-box-02.hhlab.home.arpa`)"
       - "traefik.http.routers.myapp.entrypoints=websecure"
       - "traefik.http.routers.myapp.tls=true"
+      # Optional: shared admin UI middlewares (defined in Traefik file provider)
+      # - security headers: admin-security-headers@file
+      # - basic auth: admin-auth@file (requires TRAEFIK_ADMIN_BASIC_AUTH_* in .env)
+      # - IP allowlist: admin-ipallow@file (requires TRAEFIK_ADMIN_IP_ALLOWLIST_* in .env)
+      - "traefik.http.routers.myapp.middlewares=admin-security-headers@file"
       - "traefik.http.services.myapp.loadbalancer.server.port=8080"
 
 networks:
@@ -50,7 +55,7 @@ networks:
 ## Validation
 
 - Confirm the router appears in Traefik (optional):
-  `curl -s http://127.0.0.1:8080/api/http/routers | jq '.[].rule'`
+  - If the Traefik dashboard is enabled and you have access, check the dashboard at `https://traefik.<box>.<domain>/dashboard/`.
 - Confirm the app responds:
   `https://myapp.rpi-box-02.hhlab.home.arpa`
 

@@ -19,8 +19,6 @@ Pin the Ansible toolchain versions as devcontainer build arguments sourced from 
 
 The devcontainer image installs these specific versions (via `pip`) during build.
 
-Also pin `PYTHON_VERSION` (the interpreter the toolchain runs on) so the tooling runtime is reproducible.
-
 ## Consequences
 
 - Reproducible tooling across contributors and time
@@ -33,7 +31,7 @@ Also pin `PYTHON_VERSION` (the interpreter the toolchain runs on) so the tooling
 Once per month (or when you hit a tooling bug), review whether the pinned toolchain should be updated:
 
 - Compare current pins in `.env` to upstream releases for `ansible-core`, `ansible-lint`, and `yamllint`.
-- Check whether the current `PYTHON_VERSION` is still supported by `ansible-core` and `ansible-lint`.
+- Check whether the base image’s Python runtime is still supported by `ansible-core` and `ansible-lint`.
 - Skim release notes for:
   - security fixes
   - rule changes that may cause new lint failures
@@ -43,7 +41,7 @@ Once per month (or when you hit a tooling bug), review whether the pinned toolch
 
 - Update one pin at a time (for example bump `ansible-lint` first).
 - Rebuild the devcontainer image so the new versions are installed.
-- Run `./scripts/ansible-smoke.sh src/playbooks/pi-base.yml src/inventory/hosts.ini <host-or-group>` and fix any new lint failures.
+- Run `./scripts/ansible-smoke.sh src/playbooks/pi-full.yml src/inventory/hosts.ini <host-or-group>` and fix any new lint failures.
 - Record the upgrade (what changed and why) in the daily diary under `documentation/diary/`.
 
 ## Alternatives Considered
